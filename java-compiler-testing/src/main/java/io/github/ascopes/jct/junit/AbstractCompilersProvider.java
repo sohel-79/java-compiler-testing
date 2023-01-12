@@ -34,8 +34,81 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.opentest4j.TestAbortedException;
 
 /**
- * Base for defining a compiler-supplying arguments provider for Junit Jupiter parameterised test
+ * Base for defining a compiler-supplying arguments-provider for JUnit Jupiter parameterised test
  * support.
+ *
+ * <p>An example annotation would look like the following:
+ *
+ * <pre><code>
+ * {@literal @ArgumentsSource(MyCompilersProvider.class)}
+ * {@literal @ParameterizedTest(name = "for {0}")}
+ * {@literal @Retention(RetentionPolicy.RUNTIME)}
+ * {@literal @Target}({
+ *     ElementType.ANNOTATION_TYPE, 
+ *     ElementType.METHOD,
+ *     ElementType.TYPE,
+ * })
+ * public {@literal @interface} MyCompilerTest {
+ *     int minVersion() default Integer.MIN_VALUE;
+ *     int maxVersion() default Integer.MAX_VALUE;
+ *     Class&lt;? extends JctSimpleCompilerConfigurer&gt;[] configurers() default {};
+ * }
+ * </code></pre>
+ *
+ * <p>...with the JUnit5 annotation provider being implemented as:
+ *
+ * <pre><code>
+ * public final class MyCompilersProvider
+ *     extends AbstractCompilersProvider
+ *     implements AnnotationConsumer&lt;MyCompilerTest&gt; {
+ * 
+ *   {@literal @Override}
+ *   protected JctCompiler&lt;?, ?&gt; compilerForVersion(int release) {
+ *     return new MyCompilerImpl().release(release);
+ *   }
+ *
+ *   {@literal @Override}
+ *   protected int minSupportedVersion(boolean modules) {
+ *     return 11;
+ *   }
+ *
+ *   {@literal @Override}
+ *   protected int maxSupportedVersion(boolean modules) {
+ *     return 19;
+ *   }
+ *
+ *   {@literal @Override}
+ *   public void accept(MyCompilerTest annotation) {
+ *     super.configure(
+ *         annotation.minVersion(),
+ *         annotation.maxVersion(),
+ *         true,
+ *         annotation.configurers()
+ *     );
+ *   }
+ * }
+ * </code></pre>
+ *
+ * This would enable you to define your test cases like so:
+ *
+ * <pre><code>
+ * {@literal @MyCompilerTest(minVersion=13, maxVersion=17)}
+ * void testSomething(JctCompiler&lt;?, ?&gt; compiler) {
+ *   ...
+ * }
+ *
+ * {@literal @MyCompilerTest(configurers=WerrorConfigurer.class)}
+ * void testSomethingElse(JctCompiler&lt;?, ?&gt; compiler) {
+ *   ...
+ * }
+ *
+ * static class WerrorConfigurer implements JctSimpleCompilerConfigurer {
+ *   {@literal @Override}
+ *   public void configure(JctCompiler&lt;?, ?&gt; compiler) {
+ *     compiler.failOnErrors(true);
+ *   }
+ * }
+ * </code></pre>
  *
  * @author Ashley Scopes
  * @since 0.0.1
@@ -43,13 +116,11 @@ import org.opentest4j.TestAbortedException;
 @API(since = "0.0.1", status = Status.STABLE)
 public abstract class AbstractCompilersProvider implements ArgumentsProvider {
 
-  // Configured values by JUnit 5. Volatile in case JUnit ever does this from a different
-  // thread in the future.
-  private volatile int minVersion;
-  private volatile int maxVersion;
-
-  @Nullable
-  private volatile Class<? extends JctSimpleCompilerConfigurer>[] configurerClasses;
+  // Values that are late-bound when configure() is called from the
+  // AnnotationConsumer.
+  private int minVersion;
+  private int maxVersion;
+  private Class<? extends JctSimpleCompilerConfigurer>[] configurerClasses;
 
   /**
    * Initialise this provider.
@@ -57,7 +128,7 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
   protected AbstractCompilersProvider() {
     minVersion = 0;
     maxVersion = Integer.MAX_VALUE;
-    configurerClasses = null;
+    configurerClasses = emptyArray();
   }
 
   @Override
@@ -184,4 +255,8 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  private static <T> Class<T>[] emptyArray() {
+    return (Class<T>[]) new Class[0];
+  }
 }

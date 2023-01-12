@@ -3,32 +3,25 @@ name: Deploy a branch
 on:
   workflow_dispatch:
     inputs:
-
-      deploy-artifacts-to-gh-packages:
-        description: "Deploy artifacts to GH Packages"
+      dry-run:
+        description: "Dry run the deployment"
         default: true
         type: boolean
 
-      deploy-javadoc-to-gh-pages:
-        description: "Deploy JavaDocs to GH Pages"
-        default: true
-        type: boolean
+      version:
+        description: "Version (leave blank to release non-SNAPSHOT patch)"
+        default: ""
+        type: string
 
 jobs:
-  build:
-    name: Build
-    uses: ./.github/workflows/build.yml
-
-  github:
-    name: "Deploy to GitHub"
-    needs: [build]
+  maven-central:
+    name: Build and deploy code
     runs-on: ubuntu-22.04
 
     permissions:
-      contents: read
-      packages: write
-      pages: write
+      contents: write
       id-token: write
+      pages: write
 
     steps:
       - name: Checkout repository
@@ -36,38 +29,76 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Initialize JDK
+      - name: Initialize Java environment
         uses: actions/setup-java@v3
         with:
           distribution: zulu
           # Must use >= JDK 17 for Javadocs to generate correctly.
           java-version: 17
+          server-id: ossrh
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_TOKEN
+          gpg-passphrase: GPG_PASSPHRASE
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
 
-      - name: Build artifacts and deploy to GitHub packages
-        run: >-
-          ./mvnw
-          -B
-          -e
-          -T4
-          -Dmaven.deploy.skip=${{ ! inputs.deploy-artifacts-to-gh-packages }}
-          -Dmaven.source.includePom=true
-          -Dmaven.test.skip=true
-          -Dmaven.wagon.httpconnectionManager.ttlSeconds=120
-          -Dstyle.color=always
-          --also-make
-          --no-transfer-progress
-          --projects java-compiler-testing
-          clean install javadoc:jar source:jar deploy
+      - name: Configure Git
+        shell: bash
+        run: |-
+          source ./scripts/common.sh
+          
+          info "Applying Git user configuration"
+          run <<SCRIPT
+            git config user.name '${{ github.actor }}'
+            git config user.email '${{ github.actor }}@users.noreply.github.com'
+          SCRIPT
+
+      - name: Perform release to Maven Central
+        shell: bash
+        run: |-
+          source ./scripts/common.sh
+          
+          info "Determining release version to use (this may take a moment)..."
+          if [[ '${{ inputs.version }}' == "" ]]; then
+            release_version="$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout | sed 's/-SNAPSHOT//g')"
+          else
+            release_version='${{ inputs.version }}'
+          fi
+          
+          success "Will use version ${release_version} for this release"
+          
+          info "Preparing and performing the release"
+          ensure-set OSSRH_USERNAME OSSRH_TOKEN GPG_PASSPHRASE
+          
+          build_args=(
+            "-Dmaven.test.skip" 
+            "-DskipTests"
+            "-Dlicense.skip=true"
+            "-Dcheckstyle.skip=true"
+            "-Preleases"
+          )
+          
+          run <<-SCRIPT          
+            ./mvnw -B -e \
+                -Preleases \
+                --no-transfer-progress \
+                -Darguments='${build_args[@]}' \
+                -DdryRun='${{ inputs.dry-run }}' \
+                -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
+                -Dpassword='${{ secrets.GITHUB_TOKEN }}' \
+                -DreleaseVersion='${release_version}' \
+                -DsignTag=false \
+                -Dstyle.color=always \
+                -Dtag='v${release_version}' \
+                release:prepare release:perform
+          SCRIPT
+          
+          success "Release has been performed successfully"
+          info "Please login on https://s01.oss.sonatype.org/#stagingRepositories site and mark the"
+          info "release as closed. Once checks pass, click the 'release' option to promote it to"
+          info "Maven Central."
+
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: Upload JavaDocs as a build artifact
-        if: ${{ inputs.deploy-javadoc-to-gh-pages }}
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: java-compiler-testing/target/apidocs
-
-      - name: Deploy JavaDocs build artifact to GitHub Pages
-        if: ${{ inputs.deploy-javadoc-to-gh-pages }}
-        id: deployment
-        uses: actions/deploy-pages@v1

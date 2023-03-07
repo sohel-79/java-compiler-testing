@@ -18,15 +18,11 @@ package io.github.ascopes.jct.workspaces.impl;
 import static io.github.ascopes.jct.utils.FileUtils.assertValidRootName;
 import static io.github.ascopes.jct.utils.IoExceptionUtils.uncheckedIo;
 
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Feature;
-import com.google.common.jimfs.Jimfs;
-import com.google.common.jimfs.PathType;
+import io.github.ascopes.jct.workspaces.RamFileSystemProvider;
 import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.annotation.CheckReturnValue;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.slf4j.Logger;
@@ -73,7 +69,12 @@ public final class RamDirectoryImpl extends AbstractManagedDirectory {
 
   @Override
   public void close() throws IOException {
-    LOGGER.debug("Closing RAM file system {} ({} @ {})", name, rootDirectory.toUri(), fileSystem);
+    LOGGER.trace(
+        "Closing RAM file system '{}' ('{}' @ {})",
+        name,
+        rootDirectory.toUri(),
+        fileSystem
+    );
     fileSystem.close();
   }
 
@@ -83,21 +84,11 @@ public final class RamDirectoryImpl extends AbstractManagedDirectory {
    * @param name a symbolic name to give the path. This must be a valid POSIX directory name.
    * @return the in-memory path.
    */
-  @CheckReturnValue
   public static RamDirectoryImpl newRamDirectory(String name) {
 
     assertValidRootName(name);
 
-    var config = Configuration
-        .builder(PathType.unix())
-        .setSupportedFeatures(Feature.LINKS, Feature.SYMBOLIC_LINKS, Feature.FILE_CHANNEL)
-        .setAttributeViews("basic", "posix")
-        .setRoots("/")
-        .setWorkingDirectory("/")
-        .setPathEqualityUsesCanonicalForm(true)
-        .build();
-
-    var fileSystem = Jimfs.newFileSystem(config);
+    var fileSystem = RamFileSystemProvider.getInstance().createFileSystem(name);
     var path = fileSystem.getRootDirectories().iterator().next().resolve(name);
 
     // Ensure the base directory exists.
@@ -105,7 +96,11 @@ public final class RamDirectoryImpl extends AbstractManagedDirectory {
 
     var fs = new RamDirectoryImpl(name, fileSystem, path);
 
-    LOGGER.debug("Initialized new root '{}' using RAM disk at {}", name, path.toUri());
+    LOGGER.debug(
+        "Initialized new root '{}' using RAM disk at '{}'",
+        name,
+        path.toUri()
+    );
 
     return fs;
   }

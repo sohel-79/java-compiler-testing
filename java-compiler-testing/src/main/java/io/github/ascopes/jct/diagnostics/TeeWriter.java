@@ -16,13 +16,13 @@
 package io.github.ascopes.jct.diagnostics;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
-import javax.annotation.WillCloseWhenClosed;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 
@@ -41,14 +41,19 @@ public final class TeeWriter extends Writer {
 
   private volatile boolean closed;
 
-  private final @WillCloseWhenClosed Writer writer;
+  private final Writer writer;
 
   // We use a StringBuilder and manually synchronise it rather than
   // a string buffer, as we want to manually synchronise the builder
   // and the delegated output writer at the same time.
   private final StringBuilder builder;
 
-  private TeeWriter(@WillCloseWhenClosed Writer writer) {
+  /**
+   * Initialise the writer.
+   *
+   * @param writer the underlying writer to "tee" to.
+   */
+  public TeeWriter(Writer writer) {
     lock = new Object();
     closed = false;
 
@@ -79,11 +84,29 @@ public final class TeeWriter extends Writer {
     }
   }
 
-  @Override
-  public String toString() {
+  /**
+   * Get the content of the internal buffer.
+   *
+   * @return the content.
+   * @since 0.2.1
+   */
+  @API(since = "0.2.1", status = Status.STABLE)
+  public String getContent() {
     synchronized (lock) {
       return builder.toString();
     }
+  }
+
+  /**
+   * Get the content of the internal buffer.
+   *
+   * <p>This calls {@link #getContent()} internally as of 0.2.1.
+   *
+   * @return the content.
+   */
+  @Override
+  public String toString() {
+    return getContent();
   }
 
   @Override
@@ -105,34 +128,21 @@ public final class TeeWriter extends Writer {
   }
 
   /**
-   * Initialize this writer by wrapping an output stream in an internally-held writer.
+   * Create a tee writer for the given output stream.
    *
-   * <p>Note that this will not buffer the output stream itself. That is up to you to do.
+   * <p>Remember you may need to manually flush the tee writer for all contents to be committed to
+   * the output stream.
    *
-   * @param charset      the charset to write with.
-   * @param outputStream the output stream to delegate to.
-   * @return the tee writer.
+   * @param outputStream the output stream.
+   * @param charset the charset.
+   * @return the Tee Writer.
+   * @since 0.2.1
    */
-  public static TeeWriter wrap(
-      Charset charset,
-      @WillCloseWhenClosed OutputStream outputStream
-  ) {
-    var writer = new OutputStreamWriter(
-        requireNonNull(outputStream, "outputStream"),
-        requireNonNull(charset, "charset")
-    );
-    return wrap(writer);
-  }
-
-  /**
-   * Initialize this writer by wrapping an output stream in an internally-held writer.
-   *
-   * <p>Note that this will not buffer the output stream itself. That is up to you to do.
-   *
-   * @param writer the writer to wrap.
-   * @return the tee writer.
-   */
-  public static TeeWriter wrap(@WillCloseWhenClosed Writer writer) {
+  @API(since = "0.2.1", status = Status.STABLE)
+  public static TeeWriter wrapOutputStream(OutputStream outputStream, Charset charset) {
+    requireNonNull(outputStream, "outputStream");
+    requireNonNull(charset, "charset");
+    var writer = new OutputStreamWriter(outputStream, charset);
     return new TeeWriter(writer);
   }
 }

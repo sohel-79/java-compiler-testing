@@ -28,12 +28,12 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import me.xdrop.fuzzywuzzy.FuzzySearch;
 import me.xdrop.fuzzywuzzy.model.BoundExtractedResult;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractPathAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for package container groups.
@@ -59,31 +59,34 @@ public final class PackageContainerGroupAssert
    *
    * @param path  the first path to check for
    * @param paths additional paths to check for.
+   * @return this object for further call chaining.
    * @throws AssertionError       if the container group is null, or if any of the files do not
    *                              exist.
    * @throws NullPointerException if any of the paths are null.
    */
-  public void allFilesExist(String path, String... paths) {
+  public PackageContainerGroupAssert allFilesExist(String path, String... paths) {
     requireNonNull(path, "path must not be null");
     requireNonNullValues(paths, "paths");
 
-    allFilesExist(combineOneOrMore(path, paths));
+    return allFilesExist(combineOneOrMore(path, paths));
   }
 
   /**
    * Assert that all given files exist.
    *
    * @param paths paths to check for.
+   * @return this object for further call chaining.
    * @throws AssertionError       if the container group is null, or if any of the files do not
    *                              exist.
    * @throws NullPointerException if any of the paths are null.
    */
-  public void allFilesExist(Iterable<String> paths) {
+  public PackageContainerGroupAssert allFilesExist(Iterable<String> paths) {
     requireNonNullValues(paths, "paths");
 
     isNotNull();
 
     assertThat(paths).allSatisfy(this::fileExists);
+    return this;
   }
 
   /**
@@ -101,8 +104,16 @@ public final class PackageContainerGroupAssert
   /**
    * Assert that the given file does not exist.
    *
+   * <pre><code>
+   *   // Using platform-specific separators.
+   *   assertions.fileDoesNotExist("foo/bar/baz.txt")...;
+   *
+   *   // Letting JCT infer the correct path separators to use (recommended).
+   *   assertions.fileDoesNotExist("foo", "bar", "baz.txt");
+   * </code></pre>
+   *
    * @param fragment  the first part of the path.
-   * @param fragments additional parts of the path.
+   * @param fragments any additional parts of the path.
    * @return this assertion object for further assertions.
    * @throws AssertionError       if the file exists, or if the container group is null.
    * @throws NullPointerException if any of the fragments are null.
@@ -134,8 +145,16 @@ public final class PackageContainerGroupAssert
   /**
    * Assert that the given file exists.
    *
-   * @param fragment  the path fragment.
-   * @param fragments any additional path fragments.
+   * <pre><code>
+   *   // Using platform-specific separators.
+   *   assertions.fileExists("foo/bar/baz.txt")...;
+   *
+   *   // Letting JCT infer the correct path separators to use (recommended).
+   *   assertions.fileExists("foo", "bar", "baz.txt");
+   * </code></pre>
+   *
+   * @param fragment  the first part of the path.
+   * @param fragments any additional parts of the path.
    * @return assertions to perform on the path of the file that exists.
    * @throws AssertionError       if the file does not exist, or if the container group is null.
    * @throws NullPointerException if any of the fragments are null.

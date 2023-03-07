@@ -22,9 +22,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Iterable and collection helper utilities.
@@ -122,7 +122,6 @@ public final class IterableUtils extends UtilityClass {
    * @param <T>       the input collection type.
    * @return the input array.
    */
-  @SuppressWarnings("NullableProblems")
   public static <T> T[] requireNonNullValues(
       T[] array,
       String arrayName

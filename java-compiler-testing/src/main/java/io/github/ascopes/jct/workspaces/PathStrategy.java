@@ -28,6 +28,9 @@ import org.apiguardian.api.API.Status;
 /**
  * Strategy to use for creating new test directories.
  *
+ * <p>This is used to define whether to use a totally isolated in-memory file system,
+ * or whether to use temporary directories on the default file system.
+ *
  * @author Ashley Scopes
  * @since 0.0.1
  */
@@ -48,6 +51,13 @@ public enum PathStrategy {
    *
    * <p>Some non-Javac compiler implementations (such as ECJ) may also have some difficulties
    * dealing with these paths.
+   *
+   * The actual implementation used internally will be the first {@link RamFileSystemProvider} that
+   * is present when querying that interface with the Java 
+   * {@link java.util.ServiceLoader Service Loader mechanism}. By default, if no custom implementation
+   * is provided by the user, then an internal implementation is used. This internal implementation is
+   * subject to change at any time (as long as the change is non-breaking), but currently uses
+   * {@link com.google.common.jimfs.Jimfs Google's JIMFS}.
    */
   RAM_DIRECTORIES(RamDirectoryImpl::newRamDirectory),
 
@@ -64,6 +74,10 @@ public enum PathStrategy {
    * <p>Since the temporary directories are usually created on the
    * {@link File default file system}, they are compatible with any annotation processors or
    * compiler implementations that expect to be run on the default file system only.
+   *
+   * <p>Some restrictions regarding file naming may be present depending on the platform that
+   * is in use, such as file name lengths on Windows. See your system documentation for more
+   * details.
    */
   TEMP_DIRECTORIES(TempDirectoryImpl::newTempDirectory);
 

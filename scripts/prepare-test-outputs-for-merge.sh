@@ -20,7 +20,8 @@
 ### that the test applies to, and to rename the jacoco.xml files to match the Java version in use.
 ###
 
-set -euo pipefail
+set -o errexit
+set -o nounset
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -47,36 +48,6 @@ if [ -z "${ci_java_version}" ] || [ -z "${ci_os}" ]; then
   err "Missing required arguments"
   usage
   exit 1
-fi
-
-info "Looking for xsltproc binary..."
-
-# If we don't have xsltproc installed, try to resolve it first.
-# If we are in CI, always attempt to install it so we ensure that it
-# is up-to-date first.
-if [[ -z ${CI+undefined} ]] && in-path xsltproc; then
-  info "xsltproc appears to be installed, and this is not a CI run"
-elif [[ "${OSTYPE}" = "darwin"* ]] && in-path brew; then
-  info "Installing xsltproc from homebrew"
-  run <<< "brew install libxslt"
-  info "Giving the brew xsltproc binary precedence over the default MacOS one..."
-  export PATH="/usr/local/opt/libxslt/bin:${PATH}"
-elif [[ "${OSTYPE}" =~ /win.*|mingw|msys|cygwin/ ]] && in-path choco; then
-  info "Installing xsltproc from choco"
-  run <<< "choco install xsltproc"
-elif [[ "${OSTYPE}" = "linux"* ]] && in-path apt-get; then
-  info "Installing xsltproc using apt-get"
-  run <<< "sudo apt-get install -qy xsltproc"
-elif [[ "${OSTYPE}" = "linux"* ]] && in-path dnf; then
-  info "Installing xsltproc using dnf"
-  run <<< "sudo dnf install -qy xsltproc"
-elif [[ "${OSTYPE}" = "linux"* ]] && in-path yum; then
-  info "Installing xsltproc using yum"
-  run <<< "sudo yum install -qy xsltproc"
-else
-  err "Cannot find xsltproc, nor can I find a suitable package manager to install it with."
-  err "Please install xsltproc manually and then try again."
-  exit 2
 fi
 
 success "Found $(command -v xsltproc)"
@@ -119,12 +90,12 @@ info "Generated XSLT script at ${surefire_prefix_xslt}"
 
 function find-all-surefire-reports {
   info "Discovering Surefire test reports"
-  find . -wholename '**/target/surefire-reports/TEST-*Test.xml' -print0 | xargs -0
+  find . -wholename '**/target/surefire-reports/TEST-*Test.xml' -print
 }
 
 function find-all-failsafe-reports {
   info "Discovering Failsafe test reports"
-  find . -wholename '**/target/failsafe-reports/TEST-*Test.xml' -print0 | xargs -0
+  find . -wholename '**/target/failsafe-reports/TEST-*Test.xml' -print
 }
 
 function find-all-jacoco-reports {
@@ -139,15 +110,39 @@ function find-all-jacoco-reports {
   fi
 }
 
+function xsltproc-surefire-report {
+  local prefix="${1}"
+  local xslt="${2}"
+  local input_report="${3}"
+  local output_report="${4}"
+
+  if ! run --no-group <<< "xsltproc --stringparam prefix '${prefix}' '${xslt}' '${input_report}' > '${output_report}'"; then
+    err "Error invoking xsltproc! Erroneous report was:"
+    dump "${input_report}"
+    return 2
+  fi
+
+  rm "${input_report}"
+}
+
 info "Updating test reports..."
 report_count=0
-for report in $(find-all-surefire-reports) $(find-all-failsafe-reports); do
+prefix="[Java-${ci_java_version}-${ci_os}]"
+concurrency="$(($(nproc || echo 2) * 4))"
+
+while read -r report; do
   report_count="$((report_count+1))"
   new_report="${report/.xml/-java-${ci_java_version}-${ci_os}.xml}"
-  prefix="[Java-${ci_java_version}-${ci_os}]"
-  run <<< "xsltproc --stringparam prefix '${prefix}' '${surefire_prefix_xslt}' '${report}' > '${new_report}'"
-  run <<< "rm '${report}'"
-done
+  xsltproc-surefire-report "${prefix}" "${surefire_prefix_xslt}" "${report}" "${new_report}" &
+
+  # Wait if we have the max number of jobs in the window running (cpu-count * 4)
+  if [ "$((report_count % concurrency))" -eq 0 ]; then
+    wait < <(jobs -p)
+    info "Waited for up to ${concurrency} jobs to complete, will now continue..."
+  fi
+done < <(find-all-surefire-reports; find-all-failsafe-reports)
+wait < <(jobs -p)
+
 success "Updated ${report_count} test reports"
 
 info "Updating coverage reports..."
@@ -155,7 +150,7 @@ jacoco_count=0
 for jacoco_report in $(find-all-jacoco-reports); do
   jacoco_count="$((jacoco_count+1))"
   new_jacoco_report="${jacoco_report/.xml/-java-${ci_java_version}-${ci_os}.xml}"
-  run <<< "mv '${jacoco_report}' '${new_jacoco_report}'"
+  run --no-group <<< "mv '${jacoco_report}' '${new_jacoco_report}'"
 done
 
 success "Updated ${jacoco_count} coverage reports"

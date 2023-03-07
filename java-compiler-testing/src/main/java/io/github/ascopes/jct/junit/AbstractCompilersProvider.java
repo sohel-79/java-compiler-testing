@@ -19,13 +19,13 @@ import static io.github.ascopes.jct.utils.IterableUtils.requireNonNullValues;
 import static java.util.Objects.requireNonNull;
 
 import io.github.ascopes.jct.compilers.JctCompiler;
-import io.github.ascopes.jct.compilers.JctCompilerConfigurer.JctSimpleCompilerConfigurer;
+import io.github.ascopes.jct.compilers.JctCompilerConfigurer;
 import io.github.ascopes.jct.ex.JctJunitConfigurerException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -44,7 +44,7 @@ import org.opentest4j.TestAbortedException;
  * {@literal @ParameterizedTest(name = "for {0}")}
  * {@literal @Retention(RetentionPolicy.RUNTIME)}
  * {@literal @Target}({
- *     ElementType.ANNOTATION_TYPE, 
+ *     ElementType.ANNOTATION_TYPE,
  *     ElementType.METHOD,
  *     ElementType.TYPE,
  * })
@@ -52,6 +52,7 @@ import org.opentest4j.TestAbortedException;
  *     int minVersion() default Integer.MIN_VALUE;
  *     int maxVersion() default Integer.MAX_VALUE;
  *     Class&lt;? extends JctSimpleCompilerConfigurer&gt;[] configurers() default {};
+ *     VersionStrategy versionStrategy() default VersionStrategy.RELEASE;
  * }
  * </code></pre>
  *
@@ -61,20 +62,20 @@ import org.opentest4j.TestAbortedException;
  * public final class MyCompilersProvider
  *     extends AbstractCompilersProvider
  *     implements AnnotationConsumer&lt;MyCompilerTest&gt; {
- * 
+ *
  *   {@literal @Override}
- *   protected JctCompiler&lt;?, ?&gt; compilerForVersion(int release) {
- *     return new MyCompilerImpl().release(release);
+ *   protected JctCompiler&lt;?, ?&gt; initializeNewCompiler() {
+ *     return new MyCompilerImpl();
  *   }
  *
  *   {@literal @Override}
  *   protected int minSupportedVersion(boolean modules) {
- *     return 11;
+ *     return 11;  // Support Java 11 as the minimum.
  *   }
  *
  *   {@literal @Override}
  *   protected int maxSupportedVersion(boolean modules) {
- *     return 19;
+ *     return 19;  // Support Java 19 as the maximum.
  *   }
  *
  *   {@literal @Override}
@@ -83,12 +84,13 @@ import org.opentest4j.TestAbortedException;
  *         annotation.minVersion(),
  *         annotation.maxVersion(),
  *         true,
- *         annotation.configurers()
+ *         annotation.configurers(),
+ *         annotation.versionStrategy(),
  *     );
  *   }
  * }
  * </code></pre>
- *
+ * <p>
  * This would enable you to define your test cases like so:
  *
  * <pre><code>
@@ -102,13 +104,18 @@ import org.opentest4j.TestAbortedException;
  *   ...
  * }
  *
- * static class WerrorConfigurer implements JctSimpleCompilerConfigurer {
+ * static class WerrorConfigurer implements JctCompilerConfigurer {
  *   {@literal @Override}
  *   public void configure(JctCompiler&lt;?, ?&gt; compiler) {
  *     compiler.failOnErrors(true);
  *   }
  * }
  * </code></pre>
+ *
+ * <p>Note that if you are running your tests within a JPMS module, you will need
+ * to ensure that you declare your module to be {@code open} to {@code io.github.ascopes.jct},
+ * otherwise this component will be unable to discover the constructor to initialise your configurer
+ * correctly, and may raise an exception as a result.
  *
  * @author Ashley Scopes
  * @since 0.0.1
@@ -120,7 +127,8 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
   // AnnotationConsumer.
   private int minVersion;
   private int maxVersion;
-  private Class<? extends JctSimpleCompilerConfigurer>[] configurerClasses;
+  private Class<? extends JctCompilerConfigurer<?>>[] configurerClasses;
+  private VersionStrategy versionStrategy;
 
   /**
    * Initialise this provider.
@@ -129,13 +137,14 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
     minVersion = 0;
     maxVersion = Integer.MAX_VALUE;
     configurerClasses = emptyArray();
+    versionStrategy = VersionStrategy.RELEASE;
   }
 
   @Override
   public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
     return IntStream
         .rangeClosed(minVersion, maxVersion)
-        .mapToObj(this::compilerForVersion)
+        .mapToObj(this::createCompilerForVersion)
         .peek(this::applyConfigurers)
         .map(Arguments::of);
   }
@@ -147,12 +156,14 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
    * @param max               the inclusive maximum compiler version to use.
    * @param modules           whether the compiler version must support modules.
    * @param configurerClasses the configurer classes to apply to each compiler.
+   * @param versionStrategy   the version strategy to use.
    */
   protected final void configure(
       int min,
       int max,
       boolean modules,
-      Class<? extends JctSimpleCompilerConfigurer>[] configurerClasses
+      Class<? extends JctCompilerConfigurer<?>>[] configurerClasses,
+      VersionStrategy versionStrategy
   ) {
     min = Math.max(min, minSupportedVersion(modules));
     max = Math.min(max, maxSupportedVersion(modules));
@@ -171,15 +182,15 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
     maxVersion = max;
 
     this.configurerClasses = requireNonNullValues(configurerClasses, "configurerClasses");
+    this.versionStrategy = requireNonNull(versionStrategy, "versionStrategy");
   }
 
   /**
-   * Initialise a new compiler on the given release.
+   * Initialise a new compiler.
    *
-   * @param release the release version to use.
-   * @return the compiler.
+   * @return the compiler object.
    */
-  protected abstract JctCompiler<?, ?> compilerForVersion(int release);
+  protected abstract JctCompiler<?, ?> initializeNewCompiler();
 
   /**
    * Get the minimum supported compiler version.
@@ -197,17 +208,25 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
    */
   protected abstract int maxSupportedVersion(@SuppressWarnings("unused") boolean modules);
 
+  private JctCompiler<?, ?> createCompilerForVersion(int version) {
+    var compiler = initializeNewCompiler();
+    versionStrategy.configureCompiler(compiler, version);
+    return compiler;
+  }
+
   private void applyConfigurers(JctCompiler<?, ?> compiler) {
     var classes = requireNonNull(configurerClasses);
 
     for (var configurerClass : classes) {
-      var configurer = initialiseConfigurer(configurerClass);
+      var configurer = initializeConfigurer(configurerClass);
 
       try {
         configurer.configure(compiler);
-      } catch (TestAbortedException ex) {
-        throw ex;
       } catch (Exception ex) {
+        if (isTestAbortedException(ex)) {
+          throw (TestAbortedException) ex;
+        }
+
         throw new JctJunitConfigurerException(
             "Failed to configure compiler with configurer class " + configurerClass.getName(),
             ex
@@ -216,17 +235,13 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
     }
   }
 
-  private JctSimpleCompilerConfigurer initialiseConfigurer(
-      Class<? extends JctSimpleCompilerConfigurer> configurerClass
+  private JctCompilerConfigurer<?> initializeConfigurer(
+      Class<? extends JctCompilerConfigurer<?>> configurerClass
   ) {
-    Constructor<? extends JctSimpleCompilerConfigurer> constructor;
+    Constructor<? extends JctCompilerConfigurer<?>> constructor;
 
     try {
       constructor = configurerClass.getDeclaredConstructor();
-      // Force-enable reflective access. If the user is using a SecurityManager for any reason then
-      // tough luck. JVM go bang.
-      constructor.setAccessible(true);
-
     } catch (NoSuchMethodException ex) {
       throw new JctJunitConfigurerException(
           "No no-args constructor was found for configurer class " + configurerClass.getName(),
@@ -235,17 +250,38 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
     }
 
     try {
+      // Force-enable reflective access. If the user is using a SecurityManager for any reason then
+      // tough luck. JVM go bang.
+      // If the module is not open to JCT, then we will get an InaccessibleObjectException that
+      // we should wrap and rethrow.
+      constructor.setAccessible(true);
+    } catch (InaccessibleObjectException ex) {
+
+      throw new JctJunitConfigurerException(
+          "The constructor in " + configurerClass.getSimpleName() + " cannot be called from JCT."
+              + "\n"
+              + "This is likely because JPMS modules are in use and you have not granted "
+              + "permission for JCT to access your classes reflectively."
+              + "\n"
+              + "To fix this, add the following line into your module-info.java within the "
+              + "'module' block:"
+              + "\n\n"
+              + "    opens " + constructor.getDeclaringClass().getPackageName() + " to "
+              + getClass().getModule().getName() + ";",
+          ex
+      );
+    }
+
+    try {
       return constructor.newInstance();
     } catch (ReflectiveOperationException ex) {
-      if (ex instanceof InvocationTargetException
-          && ex.getCause() instanceof TestAbortedException) {
-
-        // Aborting the test from the constructor should be equally valid, so propagate this
-        // exception as a special edge case. Throw a new instance to do this to prevent the
-        // stacktrace getting a circular reference.
-        var newEx = new TestAbortedException(ex.getCause().getMessage());
-        newEx.addSuppressed(ex);
-        throw newEx;
+      if (ex instanceof InvocationTargetException) {
+        var target = ((InvocationTargetException) ex).getTargetException();
+        if (isTestAbortedException(target)) {
+          // XXX: Creates a circular reference, do we care? JVM should handle this for us.
+          target.addSuppressed(ex);
+          throw (TestAbortedException) target;
+        }
       }
 
       throw new JctJunitConfigurerException(
@@ -258,5 +294,12 @@ public abstract class AbstractCompilersProvider implements ArgumentsProvider {
   @SuppressWarnings("unchecked")
   private static <T> Class<T>[] emptyArray() {
     return (Class<T>[]) new Class[0];
+  }
+
+  private static boolean isTestAbortedException(Throwable ex) {
+    // Use string-based reflective lookup to prevent needing the modules loaded at runtime.
+    // We don't actually need to cover junit4 or testng here since this package specifically deals
+    // with JUnit5 only.
+    return ex.getClass().getName().equals("org.opentest4j.TestAbortedException");
   }
 }

@@ -15,7 +15,9 @@
  */
 package io.github.ascopes.jct.containers.impl;
 
+import io.github.ascopes.jct.containers.Container;
 import io.github.ascopes.jct.containers.PackageContainerGroup;
+import io.github.ascopes.jct.workspaces.PathRoot;
 import java.net.URL;
 import java.net.URLClassLoader;
 import org.apiguardian.api.API;
@@ -28,6 +30,7 @@ import org.apiguardian.api.API.Status;
  * @since 0.0.1
  */
 @API(since = "0.0.1", status = Status.INTERNAL)
+@SuppressWarnings("CommentedOutCode")
 public final class PackageContainerGroupUrlClassLoader extends URLClassLoader {
 
   /**
@@ -44,14 +47,47 @@ public final class PackageContainerGroupUrlClassLoader extends URLClassLoader {
   }
 
   private static URL[] extractUrls(PackageContainerGroup group) {
-    // TODO(ascopes): should this API return a list to simplify this?
-    var pkgs = group.getPackages();
-    var iter = pkgs.iterator();
-    var urls = new URL[pkgs.size()];
-
-    for (var i = 0; i < urls.length; ++i) {
-      urls[i] = iter.next().getPathRoot().getUrl();
-    }
-    return urls;
+    return group.getPackages()
+        .stream()
+        .map(Container::getPathRoot)
+        .map(PathRoot::getUrl)
+        .toArray(URL[]::new);
   }
+
+  // TODO(ascopes): find a way to retain module information for modules that exist within this
+  //   path. Currently we are discarding that information due to the nature of how URLClassLoader
+  //   works internally.
+  //
+  // This would need something a bit more complicated to potentially mimic how the internal boot
+  // classloaders currently work in the JVM.
+  //
+  // Module resolution for classloaders is a bit different to regular loading of classes.
+  // As an example, this is how a classloader should be loading modules.
+  //
+  // var bootLayer = ModuleLayer.boot();
+  //
+  // var compiledCodeModuleConfig = Configuration.resolveAndBind(
+  //     ModuleFinder.of(compilation.getFileManager()
+  //         .getOutputContainerGroup(StandardLocation.CLASS_OUTPUT)
+  //         .getPackages()
+  //         .stream()
+  //         .map(Container::getPathRoot)
+  //         .map(PathRoot::getPath)
+  //         .toArray(Path[]::new)),
+  //     List.of(bootLayer.configuration()),
+  //     ModuleFinder.of(),
+  //     List.of("org.example")
+  // );
+  //
+  // var compiledCodeController = ModuleLayer.defineModulesWithOneLoader(
+  //     compiledCodeModuleConfig,
+  //     List.of(bootLayer),
+  //     getClass().getClassLoader()
+  // );
+  //
+  // @SuppressWarnings("unchecked")
+  // var someConfigurerCls = (Class<? extends JctCompilerConfigurer<?>>) compiledCodeController
+  //     .layer()
+  //     .findLoader("org.example")
+  //     .loadClass("org.example.SomeConfigurer");
 }

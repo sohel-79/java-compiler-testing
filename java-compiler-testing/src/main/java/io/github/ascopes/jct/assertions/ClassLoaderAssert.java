@@ -15,10 +15,10 @@
  */
 package io.github.ascopes.jct.assertions;
 
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions to perform on a classloader.

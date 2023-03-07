@@ -40,8 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import javax.annotation.Nullable;
-import javax.annotation.WillCloseWhenClosed;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import javax.tools.JavaFileObject.Kind;
@@ -118,7 +116,6 @@ public final class JarContainerImpl implements Container {
   }
 
   @Override
-  @Nullable
   public PathFileObject getFileForInput(String packageName, String relativeName) {
     var packageObj = holder.access().getPackage(packageName);
 
@@ -136,13 +133,11 @@ public final class JarContainerImpl implements Container {
   }
 
   @Override
-  @Nullable
   public PathFileObject getFileForOutput(String packageName, String relativeName) {
     throw new UnsupportedOperationException("Cannot handle output files in JARs");
   }
 
   @Override
-  @Nullable
   public PathFileObject getJavaFileForInput(String binaryName, Kind kind) {
     var packageName = FileUtils.binaryNameToPackageName(binaryName);
     var className = FileUtils.binaryNameToSimpleClassName(binaryName);
@@ -163,7 +158,6 @@ public final class JarContainerImpl implements Container {
   }
 
   @Override
-  @Nullable
   public PathFileObject getJavaFileForOutput(String className, Kind kind) {
     throw new UnsupportedOperationException("Cannot handle output source files in JARs");
   }
@@ -193,7 +187,6 @@ public final class JarContainerImpl implements Container {
   }
 
   @Override
-  @Nullable
   public String inferBinaryName(PathFileObject javaFileObject) {
     // For some reason, converting a zip entry to a URI gives us a scheme of `jar://file://`, but
     // we cannot then parse the URI back to a path without removing the `file://` bit first. Since
@@ -253,7 +246,7 @@ public final class JarContainerImpl implements Container {
   private final class PackageFileSystemHolder {
 
     private final Map<String, PathRoot> packages;
-    private final @WillCloseWhenClosed FileSystem fileSystem;
+    private final FileSystem fileSystem;
 
     private PackageFileSystemHolder() throws IOException {
       // It turns out that we can open more than one ZIP file system pointing to the
@@ -298,7 +291,7 @@ public final class JarContainerImpl implements Container {
     }
 
     private void close() throws IOException {
-      LOGGER.debug(
+      LOGGER.trace(
           "Closing JAR file system handle ({} @ {})",
           jarPath.getUri(),
           fileSystem.getRootDirectories()
@@ -311,7 +304,6 @@ public final class JarContainerImpl implements Container {
       return packages;
     }
 
-    @Nullable
     private PathRoot getPackage(String name) {
       return packages.get(name);
     }
@@ -327,7 +319,7 @@ public final class JarContainerImpl implements Container {
     private Collection<Path> getAllFiles() throws IOException {
       var allPaths = new ArrayList<Path>();
 
-      // TODO: think of a faster way of doing this without returning a closeable stream.
+      // We have to do this eagerly as the walkers must be closed to prevent resource leakage.
       for (var root : fileSystem.getRootDirectories()) {
         try (var walker = Files.walk(root)) {
           walker.forEach(allPaths::add);

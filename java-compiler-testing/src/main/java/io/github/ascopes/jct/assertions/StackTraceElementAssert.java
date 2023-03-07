@@ -17,13 +17,13 @@ package io.github.ascopes.jct.assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.AbstractBooleanAssert;
 import org.assertj.core.api.AbstractIntegerAssert;
 import org.assertj.core.api.AbstractStringAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions to perform on a {@link StackTraceElement stack trace frame}.

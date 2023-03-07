@@ -16,7 +16,6 @@
 package io.github.ascopes.jct.tests.unit.assertions;
 
 import static io.github.ascopes.jct.tests.helpers.Fixtures.someLocation;
-import static io.github.ascopes.jct.tests.helpers.GenericMock.mockRaw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,8 +29,8 @@ import io.github.ascopes.jct.assertions.LocationAssert;
 import io.github.ascopes.jct.containers.ContainerGroup;
 import java.util.List;
 import java.util.ServiceLoader;
-import javax.annotation.Nullable;
 import org.assertj.core.api.AbstractListAssert;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,7 +41,6 @@ import org.junit.jupiter.api.Test;
  * @author Ashley Scopes
  */
 @DisplayName("AbstractContainerGroupAssert tests")
-@SuppressWarnings({"DataFlowIssue"})
 class AbstractContainerGroupAssertTest {
 
   @DisplayName("AbstractContainerGroupAssert#location tests")
@@ -120,9 +118,7 @@ class AbstractContainerGroupAssertTest {
       var impl2 = mock(SomeServiceType.class);
       var impl3 = mock(SomeServiceType.class);
 
-      var serviceLoader = mockRaw(ServiceLoader.class)
-          .<ServiceLoader<SomeServiceType>>upcastedTo()
-          .build();
+      ServiceLoader<SomeServiceType> serviceLoader = mock();
       when(serviceLoader.iterator()).then(ctx -> List.of(impl1, impl2, impl3).iterator());
 
       var containerGroup = mock(ContainerGroup.class);

@@ -28,10 +28,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import javax.tools.JavaFileObject.Kind;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Utilities for handling files in the file system.
@@ -95,10 +95,7 @@ public final class FileUtils extends UtilityClass {
    * @return the resolved path.
    */
   public static Path resolvePathRecursively(Path root, String... parts) {
-    for (var part : parts) {
-      root = root.resolve(part);
-    }
-    return root.normalize();
+    return resolve(root, parts);
   }
 
   /**
@@ -254,8 +251,8 @@ public final class FileUtils extends UtilityClass {
    * Convert a relative class path resource path to a NIO path.
    *
    * @param directory the directory the resource sits within.
-   * @param fragment  the first path fragment.
-   * @param fragments any additional path fragments.
+   * @param fragment  the first part of the path.
+   * @param fragments the rest of the path.
    * @return the path to the resource on the file system.
    */
   public static Path relativeResourceNameToPath(

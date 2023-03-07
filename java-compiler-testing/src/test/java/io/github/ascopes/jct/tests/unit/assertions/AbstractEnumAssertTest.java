@@ -20,18 +20,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.ascopes.jct.assertions.AbstractEnumAssert;
 import java.util.Arrays;
 import java.util.List;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("AbstractEnumAssert tests")
-@SuppressWarnings("DataFlowIssue")
 class AbstractEnumAssertTest {
 
   @DisplayName(".isAnyOf(...) tests")
   @Nested
   class IsAnyOfTest {
+
     @DisplayName("Expect failure when the element is null and we assert against one element")
     @Test
     void failsIfInputIsNullOnSingleElement() {
@@ -144,6 +144,7 @@ class AbstractEnumAssertTest {
   @DisplayName(".isAnyOfElements(...) tests")
   @Nested
   class IsAnyOfElementsTest {
+
     @DisplayName("Expect failure when the element is null")
     @Test
     void failsIfInputIsNull() {
@@ -210,6 +211,7 @@ class AbstractEnumAssertTest {
   @DisplayName(".isNoneOf(...) tests")
   @Nested
   class IsNoneOfTest {
+
     @DisplayName("Expect failure when the element is null and we assert against one element")
     @Test
     void failsIfInputIsNullOnSingleElement() {
@@ -309,6 +311,7 @@ class AbstractEnumAssertTest {
   @DisplayName(".isNoneOfElements(...) tests")
   @Nested
   class IsNoneOfElementsTest {
+
     @DisplayName("Expect failure when the element is null")
     @Test
     void failsIfInputIsNull() {
@@ -373,6 +376,7 @@ class AbstractEnumAssertTest {
   }
 
   static class Impl extends AbstractEnumAssert<Impl, DnbArtist> {
+
     Impl(@Nullable DnbArtist value) {
       super(value, Impl.class);
     }

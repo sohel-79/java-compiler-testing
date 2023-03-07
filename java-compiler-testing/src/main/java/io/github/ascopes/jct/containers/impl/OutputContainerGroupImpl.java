@@ -22,28 +22,27 @@ import io.github.ascopes.jct.containers.OutputContainerGroup;
 import io.github.ascopes.jct.containers.PackageContainerGroup;
 import io.github.ascopes.jct.filemanagers.ModuleLocation;
 import io.github.ascopes.jct.filemanagers.PathFileObject;
-import io.github.ascopes.jct.utils.ModuleHandle;
 import io.github.ascopes.jct.utils.StringUtils;
 import io.github.ascopes.jct.workspaces.PathRoot;
 import io.github.ascopes.jct.workspaces.impl.WrappingDirectoryImpl;
 import java.nio.file.Files;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
-import javax.annotation.WillCloseWhenClosed;
-import javax.annotation.WillNotClose;
 import javax.tools.JavaFileManager.Location;
-import javax.tools.JavaFileObject.Kind;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A group of containers that relate to a specific output location.
  *
  * <p>These can contain packages <strong>and</strong> modules of packages together, and thus
  * are slightly more complicated internally as a result.
+ *
+ * <p>Operations on modules should first {@link #getModule(String) get} or
+ * {@link #getOrCreateModule(String) create} the module, and then operate on that sub-container
+ * group. Operations on non-module packages should operate on this container group directly.
  *
  * @author Ashley Scopes
  * @since 0.0.1
@@ -53,7 +52,7 @@ public final class OutputContainerGroupImpl
     extends AbstractPackageContainerGroup
     implements OutputContainerGroup {
 
-  private final Map<ModuleLocation, OutputPackageContainerGroupImpl> modules;
+  private final Map<ModuleLocation, PackageContainerGroup> modules;
 
   /**
    * Initialize this container group.
@@ -83,7 +82,7 @@ public final class OutputContainerGroupImpl
   }
 
   @Override
-  public void addModule(String module, @WillCloseWhenClosed Container container) {
+  public void addModule(String module, Container container) {
     getOrCreateModule(module).addPackage(container);
   }
 
@@ -104,6 +103,7 @@ public final class OutputContainerGroupImpl
     return super.contains(fileObject);
   }
 
+  @Nullable
   @Override
   public PackageContainerGroup getModule(String module) {
     if (module.isEmpty()) {
@@ -121,82 +121,8 @@ public final class OutputContainerGroupImpl
   }
 
   @Override
-  @Nullable
-  public PathFileObject getFileForInput(String packageName, String relativeName) {
-    var moduleHandle = ModuleHandle.tryExtract(packageName);
-
-    if (moduleHandle != null) {
-      var module = getModule(moduleHandle.getModuleName());
-
-      if (module != null) {
-        var file = module.getFileForInput(moduleHandle.getRest(), relativeName);
-
-        if (file != null) {
-          return file;
-        }
-      }
-    }
-
-    return super.getFileForInput(packageName, relativeName);
-  }
-
-  @Override
-  @Nullable
-  public PathFileObject getFileForOutput(String packageName, String relativeName) {
-    var moduleHandle = ModuleHandle.tryExtract(packageName);
-
-    if (moduleHandle != null) {
-      var module = getOrCreateModule(moduleHandle.getModuleName());
-      var file = module.getFileForOutput(moduleHandle.getRest(), relativeName);
-
-      if (file != null) {
-        return file;
-      }
-    }
-
-    return super.getFileForOutput(packageName, relativeName);
-  }
-
-  @Override
-  @Nullable
-  public PathFileObject getJavaFileForInput(String className, Kind kind) {
-    var moduleHandle = ModuleHandle.tryExtract(className);
-
-    if (moduleHandle != null) {
-      var module = getModule(moduleHandle.getModuleName());
-
-      if (module != null) {
-        var file = module.getJavaFileForInput(moduleHandle.getRest(), kind);
-
-        if (file != null) {
-          return file;
-        }
-      }
-    }
-
-    return super.getJavaFileForInput(className, kind);
-  }
-
-  @Override
-  @Nullable
-  public PathFileObject getJavaFileForOutput(String className, Kind kind) {
-    var moduleHandle = ModuleHandle.tryExtract(className);
-
-    if (moduleHandle != null) {
-      var module = getOrCreateModule(moduleHandle.getModuleName());
-      var file = module.getJavaFileForOutput(moduleHandle.getRest(), kind);
-
-      if (file != null) {
-        return file;
-      }
-    }
-
-    return super.getJavaFileForOutput(className, kind);
-  }
-
-  @Override
-  public List<Set<Location>> getLocationsForModules() {
-    return List.of(Set.copyOf(modules.keySet()));
+  public Set<Location> getLocationsForModules() {
+    return Set.copyOf(modules.keySet());
   }
 
   @Override
@@ -215,20 +141,30 @@ public final class OutputContainerGroupImpl
     return modules.containsKey(location);
   }
 
-  @Override
-  protected ClassLoader createClassLoader() {
-    return new PackageContainerGroupUrlClassLoader(this);
-  }
-
   @SuppressWarnings("resource")
-  @WillNotClose
-  private OutputPackageContainerGroupImpl newPackageGroup(ModuleLocation moduleLocation) {
+  private PackageContainerGroup newPackageGroup(ModuleLocation moduleLocation) {
     // For output locations, we only need the first root. We then just put a subdirectory
     // in there, as it reduces the complexity of this tenfold and means we don't have to
     // worry about creating more in-memory locations on the fly.
+    //
+    // The reason we have to do this relates to the fact that we will be provided an output
+    // directory to write to regardless of whether we want to write out modules or normal
+    // packages.
     var release = getRelease();
+    var packages = getPackages();
 
-    var group = new OutputPackageContainerGroupImpl(moduleLocation, release);
+    if (packages.isEmpty()) {
+      // This *shouldn't* be reachable in most cases.
+      throw new IllegalStateException(
+          "Cannot add module " + moduleLocation + " to outputs. No output path has been "
+              + "provided for this location! Please register a package path to output generated "
+              + "modules to first before running the compiler."
+      );
+    }
+
+    // Use an anonymous class here to avoid the constraints that the PackageContainerGroupImpl
+    // imposes on us.
+    var group = new AbstractPackageContainerGroup(moduleLocation, release) {};
     var pathWrapper = new WrappingDirectoryImpl(
         getPackages().iterator().next().getPathRoot(),
         moduleLocation.getModuleName()
@@ -236,24 +172,5 @@ public final class OutputContainerGroupImpl
     uncheckedIo(() -> Files.createDirectories(pathWrapper.getPath()));
     group.addPackage(pathWrapper);
     return group;
-  }
-
-  /**
-   * Unlike {@link PackageContainerGroupImpl}, this implementation does not reject output-oriented
-   * locations in the constructor.
-   *
-   * <p>This implementation is only ever expected to hold one of each container in it.
-   */
-  private static final class OutputPackageContainerGroupImpl
-      extends AbstractPackageContainerGroup {
-
-    private OutputPackageContainerGroupImpl(Location location, String release) {
-      super(location, release);
-    }
-
-    @Override
-    protected ClassLoader createClassLoader() {
-      return new PackageContainerGroupUrlClassLoader(this);
-    }
   }
 }

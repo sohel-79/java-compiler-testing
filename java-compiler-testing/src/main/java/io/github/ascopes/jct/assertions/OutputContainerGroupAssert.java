@@ -16,9 +16,9 @@
 package io.github.ascopes.jct.assertions;
 
 import io.github.ascopes.jct.containers.OutputContainerGroup;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for output container groups.

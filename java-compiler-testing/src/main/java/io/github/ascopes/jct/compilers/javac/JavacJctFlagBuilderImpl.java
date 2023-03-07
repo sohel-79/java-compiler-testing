@@ -15,12 +15,13 @@
  */
 package io.github.ascopes.jct.compilers.javac;
 
+import io.github.ascopes.jct.compilers.CompilationMode;
 import io.github.ascopes.jct.compilers.JctFlagBuilder;
 import java.util.ArrayList;
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Helper to build flags for a standard Javac implementation for the OpenJDK.
@@ -40,7 +41,6 @@ public final class JavacJctFlagBuilderImpl implements JctFlagBuilder {
   private static final String SOURCE = "-source";
   private static final String TARGET = "-target";
   private static final String ANNOTATION_OPT = "-A";
-  private static final String RUNTIME_OPT = "-J";
 
   private final List<String> craftedFlags;
 
@@ -69,6 +69,25 @@ public final class JavacJctFlagBuilderImpl implements JctFlagBuilder {
   @Override
   public JavacJctFlagBuilderImpl failOnWarnings(boolean enabled) {
     return addFlagIfTrue(enabled, WERROR);
+  }
+
+  @Override
+  public JctFlagBuilder compilationMode(CompilationMode compilationMode) {
+    switch (compilationMode) {
+      case COMPILATION_ONLY:
+        craftedFlags.add("-proc:none");
+        break;
+
+      case ANNOTATION_PROCESSING_ONLY:
+        craftedFlags.add("-proc:only");
+        break;
+
+      default:
+        // Do nothing. The default behaviour is to allow this.
+        break;
+    }
+
+    return this;
   }
 
   @Override

@@ -25,9 +25,9 @@ import io.github.ascopes.jct.workspaces.PathRoot;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A wrapper around an existing {@link Path Java NIO Path} that makes it compatible with the
@@ -84,7 +84,6 @@ public final class WrappingDirectoryImpl implements PathRoot {
     url = retrieveRequiredUrl(this.path);
   }
 
-  @Nullable
   @Override
   public PathRoot getParent() {
     return parent;

@@ -23,9 +23,9 @@ import io.github.ascopes.jct.workspaces.Workspace;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import javax.annotation.Nullable;
 import javax.annotation.processing.Processor;
 import javax.lang.model.SourceVersion;
 import org.apiguardian.api.API;
@@ -110,6 +110,12 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
   LoggingMode DEFAULT_DIAGNOSTIC_LOGGING_MODE = LoggingMode.ENABLED;
 
   /**
+   * Default setting for the compilation mode to use
+   * ({@link CompilationMode#COMPILATION_AND_ANNOTATION_PROCESSING}).
+   */
+  CompilationMode DEFAULT_COMPILATION_MODE = CompilationMode.COMPILATION_AND_ANNOTATION_PROCESSING;
+
+  /**
    * Default setting for how to apply annotation processor discovery when no processors are
    * explicitly defined ({@link AnnotationProcessorDiscovery#INCLUDE_DEPENDENCIES}).
    */
@@ -124,14 +130,64 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
   /**
    * Invoke the compilation and return the compilation result.
    *
+   * <p>The actual classes to compile will be dynamically discovered. If you wish to
+   * specify the specific classes to compile, see {@link #compile(Workspace, String, String...)} or
+   * {@link #compile(Workspace, Collection)}.
+   *
    * @param workspace the workspace to compile.
    * @return the compilation result.
    * @throws JctCompilerException  if the compiler threw an unhandled exception. This should not
    *                               occur for compilation failures generally.
    * @throws IllegalStateException if no compilation units were found.
    * @throws UncheckedIOException  if an IO error occurs.
+   * @see #compile(Workspace, String, String...)
+   * @see #compile(Workspace, Collection)
    */
   R compile(Workspace workspace);
+
+  /**
+   * Invoke the compilation and return the compilation result.
+   *
+   * <p>Only classes matching the given class names will be compiled.
+   *
+   * <p>If you wish to let JCT determine which classes to compile dynamically, see
+   * {@link #compile(Workspace)} instead.
+   *
+   * @param workspace            the workspace to compile.
+   * @param firstClassName       the first class name to compile.
+   * @param additionalClassNames any additional class names to compile.
+   * @return the compilation result.
+   * @throws JctCompilerException  if the compiler threw an unhandled exception. This should not
+   *                               occur for compilation failures generally.
+   * @throws IllegalStateException if no compilation units were found.
+   * @throws UncheckedIOException  if an IO error occurs.
+   * @see #compile(Workspace)
+   * @see #compile(Workspace, Collection)
+   */
+  default R compile(Workspace workspace, String firstClassName, String... additionalClassNames) {
+    return compile(workspace, IterableUtils.combineOneOrMore(firstClassName, additionalClassNames));
+  }
+
+  /**
+   * Invoke the compilation and return the compilation result.
+   *
+   * <p>Only classes matching the given class names will be compiled.
+   *
+   * <p>If you wish to let JCT determine which classes to compile dynamically, see
+   * {@link #compile(Workspace)} instead.
+   *
+   * @param workspace  the workspace to compile.
+   * @param classNames the class names to compile.
+   * @return the compilation result.
+   * @throws JctCompilerException     if the compiler threw an unhandled exception. This should not
+   *                                  occur for compilation failures generally.
+   * @throws IllegalArgumentException if the collection is empty.
+   * @throws IllegalStateException    if no compilation units were found.
+   * @throws UncheckedIOException     if an IO error occurs.
+   * @see #compile(Workspace)
+   * @see #compile(Workspace, String, String...)
+   */
+  R compile(Workspace workspace, Collection<String> classNames);
 
   /**
    * Apply a given configurer to this compiler that can throw a checked exception.
@@ -142,6 +198,21 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
    * @throws E any exception that may be thrown by the configurer.
    */
   <E extends Exception> C configure(JctCompilerConfigurer<E> configurer) throws E;
+
+  /**
+   * Get the friendly printable name of this compiler object.
+   *
+   * @return the name of the compiler.
+   */
+  String getName();
+
+  /**
+   * Set the friendly name of this compiler.
+   *
+   * @param name the name to set.
+   * @return this compiler object for further call chaining.
+   */
+  C name(String name);
 
   /**
    * Get an <strong>immutable snapshot view</strong> of the current annotation processor options
@@ -357,6 +428,27 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
   C failOnWarnings(boolean enabled);
 
   /**
+   * Get the compilation mode that is in use.
+   *
+   * <p>Unless otherwise changed or specified, implementations should default to
+   * {@link #DEFAULT_COMPILATION_MODE}.
+   *
+   * @return the compilation mode.
+   */
+  CompilationMode getCompilationMode();
+
+  /**
+   * Set the compilation mode to use for this compiler.
+   *
+   * <p>Unless otherwise changed or specified, implementations should default to
+   * {@link #DEFAULT_COMPILATION_MODE}.
+   *
+   * @param compilationMode the compilation mode to use.
+   * @return this compiler object for further call chaining.
+   */
+  C compilationMode(CompilationMode compilationMode);
+
+  /**
    * Get the default release to use if no release or target version is specified.
    *
    * <p>This can <strong>not</strong> be configured.
@@ -364,6 +456,17 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
    * @return the default release version to use.
    */
   String getDefaultRelease();
+
+  /**
+   * Get the effective release to use for the actual compilation.
+   *
+   * <p>This may be determined from the {@link #getSource() source},
+   * {@link #getTarget() target}, {@link #getRelease() release}, and
+   * {@link #getDefaultRelease() default release.}
+   *
+   * @return the effective release.
+   */
+  String getEffectiveRelease();
 
   /**
    * Get the current release version that is set, or {@code null} if left to the compiler to decide.
@@ -374,7 +477,6 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
    *
    * @return the release version string, if set.
    */
-  @Nullable
   String getRelease();
 
   /**
@@ -433,7 +535,6 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
    *
    * @return the source version string, if set.
    */
-  @Nullable
   String getSource();
 
   /**
@@ -491,7 +592,6 @@ public interface JctCompiler<C extends JctCompiler<C, R>, R extends JctCompilati
    *
    * @return the target version string, if set.
    */
-  @Nullable
   String getTarget();
 
   /**

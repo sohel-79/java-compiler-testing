@@ -26,8 +26,6 @@ import io.github.ascopes.jct.filemanagers.JctFileManager;
 import io.github.ascopes.jct.utils.ToStringBuilder;
 import java.util.List;
 import java.util.Set;
-import javax.annotation.Nullable;
-import javax.annotation.WillNotClose;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
@@ -45,12 +43,16 @@ public final class JctCompilationImpl implements JctCompilation {
   private final boolean failOnWarnings;
   private final List<String> outputLines;
   private final Set<JavaFileObject> compilationUnits;
-  private final List<TraceDiagnostic<? extends JavaFileObject>> diagnostics;
+  private final List<TraceDiagnostic<JavaFileObject>> diagnostics;
   private final JctFileManager fileManager;
 
   private JctCompilationImpl(Builder builder) {
-    success = requireNonNull(builder.success, "success");
-    failOnWarnings = requireNonNull(builder.failOnWarnings, "failOnWarnings");
+    success = requireNonNull(
+        builder.success, "success"
+    );
+    failOnWarnings = requireNonNull(
+        builder.failOnWarnings, "failOnWarnings"
+    );
     outputLines = unmodifiableList(
         requireNonNullValues(builder.outputLines, "outputLines")
     );
@@ -60,7 +62,9 @@ public final class JctCompilationImpl implements JctCompilation {
     diagnostics = unmodifiableList(
         requireNonNullValues(builder.diagnostics, "diagnostics")
     );
-    fileManager = requireNonNull(builder.fileManager, "fileManager");
+    fileManager = requireNonNull(
+        builder.fileManager, "fileManager"
+    );
   }
 
   @Override
@@ -84,7 +88,7 @@ public final class JctCompilationImpl implements JctCompilation {
   }
 
   @Override
-  public List<TraceDiagnostic<? extends JavaFileObject>> getDiagnostics() {
+  public List<TraceDiagnostic<JavaFileObject>> getDiagnostics() {
     return diagnostics;
   }
 
@@ -120,23 +124,11 @@ public final class JctCompilationImpl implements JctCompilation {
   @API(since = "0.0.1", status = Status.INTERNAL)
   public static final class Builder {
 
-    @Nullable
     private Boolean failOnWarnings;
-
-    @Nullable
     private Boolean success;
-
-    @Nullable
     private List<String> outputLines;
-
-    @Nullable
-    private Set<? extends JavaFileObject> compilationUnits;
-
-    @Nullable
-    private List<? extends TraceDiagnostic<? extends JavaFileObject>> diagnostics;
-
-    @Nullable
-    @WillNotClose
+    private Set<JavaFileObject> compilationUnits;
+    private List<TraceDiagnostic<JavaFileObject>> diagnostics;
     private JctFileManager fileManager;
 
     private Builder() {
@@ -188,7 +180,7 @@ public final class JctCompilationImpl implements JctCompilation {
      * @param compilationUnits the compilation units.
      * @return this builder.
      */
-    public Builder compilationUnits(Set<? extends JavaFileObject> compilationUnits) {
+    public Builder compilationUnits(Set<JavaFileObject> compilationUnits) {
       this.compilationUnits = requireNonNull(compilationUnits, "compilationUnits");
       return this;
     }
@@ -200,7 +192,7 @@ public final class JctCompilationImpl implements JctCompilation {
      * @return this builder.
      */
     public Builder diagnostics(
-        List<? extends TraceDiagnostic<? extends JavaFileObject>> diagnostics
+        List<TraceDiagnostic<JavaFileObject>> diagnostics
     ) {
       this.diagnostics = requireNonNull(diagnostics, "diagnostics");
       return this;
@@ -209,10 +201,12 @@ public final class JctCompilationImpl implements JctCompilation {
     /**
      * Set the file manager.
      *
+     * <p>The file manager will not be closed once finshed with.
+     *
      * @param fileManager the file manager.
      * @return this builder.
      */
-    public Builder fileManager(@WillNotClose JctFileManager fileManager) {
+    public Builder fileManager(JctFileManager fileManager) {
       this.fileManager = requireNonNull(fileManager, "fileManager");
       return this;
     }

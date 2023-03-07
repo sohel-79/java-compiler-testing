@@ -17,15 +17,12 @@ package io.github.ascopes.jct.containers;
 
 import io.github.ascopes.jct.filemanagers.ModuleLocation;
 import io.github.ascopes.jct.workspaces.PathRoot;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.annotation.Nullable;
-import javax.annotation.WillClose;
-import javax.annotation.WillNotClose;
 import javax.tools.JavaFileManager.Location;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A container group implementation that holds zero or more modules.
@@ -47,7 +44,7 @@ public interface ModuleContainerGroup extends ContainerGroup {
    * @param module    the module that the container is for.
    * @param container the container to add.
    */
-  void addModule(String module, @WillClose Container container);
+  void addModule(String module, Container container);
 
   /**
    * Add a path to this group for a module.
@@ -55,7 +52,7 @@ public interface ModuleContainerGroup extends ContainerGroup {
    * @param module the name of the module that this is for.
    * @param path   the path to add.
    */
-  void addModule(String module, @WillNotClose PathRoot path);
+  void addModule(String module, PathRoot path);
 
   /**
    * Find the package container group for the given module.
@@ -88,7 +85,7 @@ public interface ModuleContainerGroup extends ContainerGroup {
    *
    * @return the locations that are modules.
    */
-  List<Set<Location>> getLocationsForModules();
+  Set<Location> getLocationsForModules();
 
   /**
    * Get the module container impl in this group.

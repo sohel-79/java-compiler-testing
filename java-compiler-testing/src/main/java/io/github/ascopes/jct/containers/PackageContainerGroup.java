@@ -19,11 +19,8 @@ import io.github.ascopes.jct.filemanagers.PathFileObject;
 import io.github.ascopes.jct.workspaces.PathRoot;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.List;
 import java.util.Set;
-import javax.annotation.Nullable;
-import javax.annotation.WillCloseWhenClosed;
-import javax.annotation.WillNotClose;
 import javax.tools.FileObject;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
@@ -47,7 +44,7 @@ public interface PackageContainerGroup extends ContainerGroup {
    *
    * @param container the container to add.
    */
-  void addPackage(@WillCloseWhenClosed Container container);
+  void addPackage(Container container);
 
   /**
    * Add a path to this group.
@@ -64,7 +61,7 @@ public interface PackageContainerGroup extends ContainerGroup {
    *
    * @param path the path to add.
    */
-  void addPackage(@WillNotClose PathRoot path);
+  void addPackage(PathRoot path);
 
   /**
    * Get a class loader for this group of containers.
@@ -81,12 +78,19 @@ public interface PackageContainerGroup extends ContainerGroup {
    *
    * <p>Modules are treated as subdirectories.
    *
+   * <pre><code>
+   *   // Using platform-specific separators.
+   *   containerGroup.getFile("foo/bar/baz.txt")...;
+   *
+   *   // Letting JCT infer the correct path separators to use (recommended).
+   *   containerGroup.getFile("foo", "bar", "baz.txt");
+   * </code></pre>
+   *
    * @param fragment  the first part of the path.
    * @param fragments any additional parts of the path.
    * @return the first occurrence of the path in this group, or null if not found.
    * @throws IllegalArgumentException if the provided path is absolute.
    */
-  @Nullable
   Path getFile(String fragment, String... fragments);
 
   /**
@@ -98,7 +102,6 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @param relativeName the relative name of the file to read.
    * @return the file object, or null if the file is not found.
    */
-  @Nullable
   PathFileObject getFileForInput(String packageName, String relativeName);
 
   /**
@@ -112,7 +115,6 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @return the {@link FileObject} to write to, or null if this group has no paths that can be
    *     written to.
    */
-  @Nullable
   PathFileObject getFileForOutput(String packageName, String relativeName);
 
   /**
@@ -125,7 +127,6 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @return the {@link JavaFileObject} to write to, or null if this group has no paths that can be
    *     written to.
    */
-  @Nullable
   PathFileObject getJavaFileForInput(String className, Kind kind);
 
   /**
@@ -139,7 +140,6 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @return the {@link JavaFileObject} to write to, or null if this group has no paths that can be
    *     written to.
    */
-  @Nullable
   PathFileObject getJavaFileForOutput(String className, Kind kind);
 
   /**
@@ -152,9 +152,12 @@ public interface PackageContainerGroup extends ContainerGroup {
   /**
    * Get the package containers in this group.
    *
+   * <p>Returned packages are presented in the order that they were registered. This is the
+   * resolution order that the compiler will use.
+   *
    * @return the containers.
    */
-  Collection<Container> getPackages();
+  List<Container> getPackages();
 
   /**
    * Try to infer the binary name of a given file object.
@@ -162,7 +165,6 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @param fileObject the file object to infer the binary name for.
    * @return the binary name if known, or null otherwise.
    */
-  @Nullable
   String inferBinaryName(PathFileObject fileObject);
 
   /**
@@ -179,13 +181,12 @@ public interface PackageContainerGroup extends ContainerGroup {
    * @param kinds       the kinds of file to look for.
    * @param recurse     {@code true} to recurse subpackages, {@code false} to only consider the
    *                    given package.
-   * @param collection  the collection to fill.
+   * @return thr file objects that were found.
    * @throws IOException if the file lookup fails due to an IO exception.
    */
-  void listFileObjects(
+  Set<JavaFileObject> listFileObjects(
       String packageName,
       Set<? extends Kind> kinds,
-      boolean recurse,
-      Collection<JavaFileObject> collection
+      boolean recurse
   ) throws IOException;
 }

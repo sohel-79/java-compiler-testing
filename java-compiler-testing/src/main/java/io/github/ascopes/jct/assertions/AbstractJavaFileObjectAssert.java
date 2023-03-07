@@ -26,7 +26,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import javax.annotation.Nullable;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
@@ -35,6 +34,7 @@ import org.assertj.core.api.AbstractByteArrayAssert;
 import org.assertj.core.api.AbstractInstantAssert;
 import org.assertj.core.api.AbstractStringAssert;
 import org.assertj.core.api.AbstractUriAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Abstract assertions for {@link JavaFileObject Java file objects}.

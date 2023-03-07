@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
 import io.github.ascopes.jct.repr.TraceDiagnosticRepresentation;
 import java.util.Locale;
-import javax.annotation.Nullable;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
@@ -29,6 +28,7 @@ import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.AbstractInstantAssert;
 import org.assertj.core.api.AbstractLongAssert;
 import org.assertj.core.api.AbstractStringAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for an individual {@link TraceDiagnostic trace diagnostic}.

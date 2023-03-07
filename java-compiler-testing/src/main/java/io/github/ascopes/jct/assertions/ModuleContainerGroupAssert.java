@@ -21,11 +21,11 @@ import io.github.ascopes.jct.containers.ModuleContainerGroup;
 import io.github.ascopes.jct.filemanagers.ModuleLocation;
 import io.github.ascopes.jct.repr.LocationRepresentation;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import me.xdrop.fuzzywuzzy.FuzzySearch;
 import me.xdrop.fuzzywuzzy.model.BoundExtractedResult;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for module container groups.

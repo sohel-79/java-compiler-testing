@@ -15,10 +15,10 @@
  */
 package io.github.ascopes.jct.assertions;
 
-import javax.annotation.Nullable;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for {@link JavaFileObject Java file objects}.

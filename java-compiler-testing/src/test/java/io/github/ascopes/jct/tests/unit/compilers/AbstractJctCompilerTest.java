@@ -15,43 +15,58 @@
  */
 package io.github.ascopes.jct.tests.unit.compilers;
 
+import static io.github.ascopes.jct.tests.helpers.Fixtures.someBoolean;
+import static io.github.ascopes.jct.tests.helpers.Fixtures.someFlags;
 import static io.github.ascopes.jct.tests.helpers.Fixtures.someInt;
+import static io.github.ascopes.jct.tests.helpers.Fixtures.someRelease;
 import static io.github.ascopes.jct.tests.helpers.Fixtures.someText;
-import static io.github.ascopes.jct.tests.helpers.GenericMock.mockRaw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import io.github.ascopes.jct.compilers.AbstractJctCompiler;
+import io.github.ascopes.jct.compilers.CompilationMode;
+import io.github.ascopes.jct.compilers.JctCompilation;
 import io.github.ascopes.jct.compilers.JctCompiler;
 import io.github.ascopes.jct.compilers.JctCompilerConfigurer;
-import io.github.ascopes.jct.compilers.JctCompilerConfigurer.JctSimpleCompilerConfigurer;
 import io.github.ascopes.jct.compilers.JctFlagBuilder;
-import io.github.ascopes.jct.compilers.impl.JctCompilationImpl;
-import io.github.ascopes.jct.compilers.impl.JctJsr199Interop;
+import io.github.ascopes.jct.compilers.JctFlagBuilderFactory;
+import io.github.ascopes.jct.compilers.Jsr199CompilerFactory;
+import io.github.ascopes.jct.compilers.impl.JctCompilationFactoryImpl;
+import io.github.ascopes.jct.ex.JctCompilerException;
 import io.github.ascopes.jct.filemanagers.AnnotationProcessorDiscovery;
+import io.github.ascopes.jct.filemanagers.JctFileManager;
+import io.github.ascopes.jct.filemanagers.JctFileManagerFactory;
 import io.github.ascopes.jct.filemanagers.LoggingMode;
 import io.github.ascopes.jct.workspaces.Workspace;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.annotation.processing.Processor;
 import javax.tools.JavaCompiler;
 import org.assertj.core.api.AbstractObjectAssert;
+import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.ClassOrderer;
 import org.junit.jupiter.api.DisplayName;
@@ -61,11 +76,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestClassOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Answers;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
+import org.mockito.MockedConstruction.Context;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -78,11 +97,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
 class AbstractJctCompilerTest {
 
-  @Mock
-  JavaCompiler jsr199Compiler;
+  @Mock(answer = Answers.RETURNS_MOCKS)
+  JctFlagBuilderFactory flagBuilderFactory;
 
-  @Mock
-  JctFlagBuilder flagBuilder;
+  @Mock(answer = Answers.RETURNS_MOCKS)
+  Jsr199CompilerFactory jsr199CompilerFactory;
+
+  @Mock(answer = Answers.RETURNS_MOCKS)
+  JctFileManagerFactory fileManagerFactory;
 
   String name;
   String defaultRelease;
@@ -92,12 +114,11 @@ class AbstractJctCompilerTest {
   void setUp() {
     name = someText();
     defaultRelease = Integer.toString(someInt(11, 21));
-    compiler = new CompilerImpl(name, jsr199Compiler, flagBuilder, defaultRelease);
+    compiler = spy(new CompilerImpl(name, defaultRelease));
   }
 
   @DisplayName("AbstractJctCompiler constructor tests")
   @Nested
-  @SuppressWarnings("ConstantConditions")
   @Order(Integer.MIN_VALUE)
   class ConstructorTest {
 
@@ -105,27 +126,9 @@ class AbstractJctCompilerTest {
     @Test
     void constructorRaisesNullPointerExceptionIfNameIsNull() {
       // Then
-      assertThatThrownBy(() -> new CompilerImpl(null, jsr199Compiler, flagBuilder, defaultRelease))
+      assertThatThrownBy(() -> new CompilerImpl(null, defaultRelease))
           .isInstanceOf(NullPointerException.class)
           .hasMessage("name");
-    }
-
-    @DisplayName("constructor raises a NullPointerException if jsr199Compiler is null")
-    @Test
-    void constructorRaisesNullPointerExceptionIfJsr199CompilerIsNull() {
-      // Then
-      assertThatThrownBy(() -> new CompilerImpl(name, null, flagBuilder, defaultRelease))
-          .isInstanceOf(NullPointerException.class)
-          .hasMessage("jsr199Compiler");
-    }
-
-    @DisplayName("constructor raises a NullPointerException if flagBuilder is null")
-    @Test
-    void constructorRaisesNullPointerExceptionIfFlagBuilderIsNull() {
-      // Then
-      assertThatThrownBy(() -> new CompilerImpl(name, jsr199Compiler, null, defaultRelease))
-          .isInstanceOf(NullPointerException.class)
-          .hasMessage("flagBuilder");
     }
 
     @DisplayName("constructor initialises name correctly")
@@ -134,22 +137,6 @@ class AbstractJctCompilerTest {
       // Then
       assertThatCompilerField("name")
           .isSameAs(name);
-    }
-
-    @DisplayName("constructor initialises jsr199Compiler correctly")
-    @Test
-    void constructorInitialisesJsr199CompilerCorrectly() {
-      // Then
-      assertThatCompilerField("jsr199Compiler")
-          .isSameAs(jsr199Compiler);
-    }
-
-    @DisplayName("constructor initialises flag builder correctly")
-    @Test
-    void constructorInitialisesFlagBuilderCorrectly() {
-      // Then
-      assertThatCompilerField("flagBuilder")
-          .isSameAs(flagBuilder);
     }
 
     @DisplayName("constructor initialises annotationProcessors to empty list")
@@ -201,6 +188,14 @@ class AbstractJctCompilerTest {
       // Then
       assertThatCompilerField("failOnWarnings")
           .isEqualTo(JctCompiler.DEFAULT_FAIL_ON_WARNINGS);
+    }
+
+    @DisplayName("constructor initialises compilationMode to default value")
+    @Test
+    void constructorInitialisesCompilationModeToDefaultValue() {
+      // Then
+      assertThatCompilerField("compilationMode")
+          .isEqualTo(JctCompiler.DEFAULT_COMPILATION_MODE);
     }
 
     @DisplayName("constructor initialises locale to default value")
@@ -321,24 +316,161 @@ class AbstractJctCompilerTest {
     }
   }
 
-  @DisplayName(".compile(...) builds the expected compilation object")
-  @Test
-  void compileReturnsTheExpectedObject() {
-    try (var factoryCls = mockStatic(JctJsr199Interop.class)) {
-      // Given
-      var expectedCompilation = mock(JctCompilationImpl.class);
-      factoryCls.when(() -> JctJsr199Interop.compile(any(), any(), any(), any()))
-          .thenReturn(expectedCompilation);
-      var expectedWorkspace = mock(Workspace.class);
+  @ExtendWith(MockitoExtension.class)
+  @SuppressWarnings("unused")
+  abstract class AbstractCompileTestTemplate {
 
+    @Mock
+    Workspace workspace;
+
+    List<String> flags;
+
+    @Mock
+    JctFileManager fileManager;
+
+    @Mock(answer = Answers.RETURNS_SELF)
+    JctFlagBuilder flagBuilder;
+
+    @Mock
+    JavaCompiler jsr199Compiler;
+
+    @Mock
+    JctCompilation compilation;
+
+    MockedConstruction<JctCompilationFactoryImpl> compilationFactoryConstructor;
+
+    BiConsumer<JctCompilationFactoryImpl, Context> compilationFactoryMockConfigurer;
+
+    @BeforeEach
+    void setUp() {
+      flags = someFlags();
+      when(flagBuilder.build()).thenReturn(flags);
+      compilationFactoryConstructor = mockConstruction(
+          JctCompilationFactoryImpl.class,
+          // Curry the call to allow other tests to override the behaviour in their "given" phase.
+          (factory, compiler) -> compilationFactoryMockConfigurer.accept(factory, compiler)
+      );
+
+      when(flagBuilderFactory.createFlagBuilder()).thenReturn(flagBuilder);
+      when(jsr199CompilerFactory.createCompiler()).thenReturn(jsr199Compiler);
+      when(fileManagerFactory.createFileManager(any())).thenReturn(fileManager);
+
+      // Default implementation. We can override this to make it throw exceptions, etc.
+      compilationFactoryMockConfigurer =
+          (factory, ctx) -> when(factory.createCompilation(any(), any(), any(), any()))
+              .thenReturn(compilation);
+    }
+
+    @AfterEach
+    void tearDown() {
+      compilationFactoryConstructor.closeOnDemand();
+    }
+
+    abstract JctCompilation doCompile();
+
+    @Nullable
+    abstract Collection<String> classNames();
+
+    @DisplayName(".compile(...) interacts with the internal factories as expected")
+    @Test
+    void compileInteractsWithInternalFactoriesAsExpected() {
       // When
-      var actualCompilation = compiler.compile(expectedWorkspace);
+      doCompile();
 
       // Then
-      factoryCls.verify(() -> JctJsr199Interop
-          .compile(expectedWorkspace, compiler, jsr199Compiler, flagBuilder));
+      verify(fileManagerFactory).createFileManager(workspace);
+      verifyNoMoreInteractions(fileManagerFactory);
 
-      assertThat(actualCompilation).isSameAs(expectedCompilation);
+      verify(flagBuilderFactory).createFlagBuilder();
+      verifyNoMoreInteractions(flagBuilderFactory);
+
+      verify(flagBuilder).build();
+
+      verify(jsr199CompilerFactory).createCompiler();
+      verifyNoMoreInteractions(jsr199CompilerFactory);
+
+      assertThat(compilationFactoryConstructor.constructed()).hasSize(1);
+
+      var compilationFactory = compilationFactoryConstructor.constructed().get(0);
+      verify(compilationFactory)
+          .createCompilation(flags, fileManager, jsr199Compiler, classNames());
+      verifyNoMoreInteractions(compilationFactory);
+    }
+
+    @DisplayName(".compile(...) returns the expected compilation")
+    @Test
+    void compileReturnsTheExpectedCompilation() {
+      // When
+      var actualCompilation = doCompile();
+
+      // Then
+      assertThat(actualCompilation).isSameAs(compilation);
+    }
+
+    @DisplayName(".compile(...) propagates exceptions thrown by the compilation process")
+    @Test
+    void compilePropagatesExceptionsThrownByTheCompilationProcess() {
+      // Given
+      var expectedException = new JctCompilerException(
+          "Compiler is broken, time to move to the forest and widdle spoons for a living",
+          new IllegalStateException("This shouldn't be happening!")
+      );
+
+      compilationFactoryMockConfigurer =
+          (factory, ctx) -> when(factory.createCompilation(any(), any(), any(), any()))
+              .thenThrow(expectedException);
+
+      // Then
+      assertThatThrownBy(this::doCompile)
+          .isSameAs(expectedException);
+    }
+
+    @DisplayName(".compile(...) rethrows filemanager closure exceptions")
+    @Test
+    void compileRethrowsFileManagerClosureExceptions() throws IOException {
+      // Given
+      var expectedException = new IOException("file manager do be heckin broken");
+      doThrow(expectedException).when(fileManager).close();
+
+      // Then
+      assertThatThrownBy(this::doCompile)
+          .isInstanceOf(JctCompilerException.class)
+          .hasMessage("Failed to close file manager. This is probably a bug, so please report it.")
+          .hasCause(expectedException);
+    }
+  }
+
+  @DisplayName("AbstractJctCompiler#compile(Workspace) tests")
+  @Nested
+  class CompileAllTest extends AbstractCompileTestTemplate {
+
+    @Override
+    JctCompilation doCompile() {
+      return compiler.compile(workspace);
+    }
+
+    @Nullable
+    @Override
+    Collection<String> classNames() {
+      return null;
+    }
+  }
+
+  @DisplayName("AbstractJctCompiler#compile(Workspace, Collection<String>) tests")
+  @Nested
+  class CompileClassNamesTest extends AbstractCompileTestTemplate {
+
+    @Mock
+    Collection<String> classNames;
+
+    @Override
+    JctCompilation doCompile() {
+      return compiler.compile(workspace, classNames);
+    }
+
+    @Override
+    Collection<String> classNames() {
+      return classNames;
     }
   }
 
@@ -348,7 +480,6 @@ class AbstractJctCompilerTest {
 
     @DisplayName(".configure(...) raises a NullPointerException if the input is null")
     @Test
-    @SuppressWarnings("ConstantConditions")
     void configureRaisesNullPointerExceptionOnNullInput() {
       // Then
       assertThatThrownBy(() -> compiler.configure(null))
@@ -357,13 +488,10 @@ class AbstractJctCompilerTest {
     }
 
     @DisplayName(".configure(...) invokes the configurer on the compiler")
-    @ValueSource(classes = {JctCompilerConfigurer.class, JctSimpleCompilerConfigurer.class})
-    @ParameterizedTest(name = "for configurer of type {0}")
-    void configureInvokesConfigurerOnTheCompiler(
-        Class<? extends JctCompilerConfigurer<?>> cls
-    ) throws Throwable {
+    @Test
+    void configureInvokesConfigurerOnTheCompiler() throws Throwable {
       // Given
-      var configurer = mock(cls);
+      JctCompilerConfigurer<?> configurer = mock();
 
       // When
       compiler.configure(configurer);
@@ -378,7 +506,7 @@ class AbstractJctCompilerTest {
         RuntimeException.class,
         IOException.class,
         FileSystemException.class,
-        FileNotFoundException.class,
+        NoSuchFileException.class,
         UnsupportedEncodingException.class,
         IndexOutOfBoundsException.class,
         SecurityException.class,
@@ -395,9 +523,7 @@ class AbstractJctCompilerTest {
     @ParameterizedTest(name = "for exception of type {0}")
     void configurePropagatesAnyException(Class<? extends Exception> exceptionCls) throws Throwable {
       // Given
-      var configurer = mockRaw(JctCompilerConfigurer.class)
-          .<JctCompilerConfigurer<?>>upcastedTo()
-          .build();
+      JctCompilerConfigurer<?> configurer = mock(JctCompilerConfigurer.class);
 
       doThrow(exceptionCls).when(configurer).configure(any());
 
@@ -407,13 +533,10 @@ class AbstractJctCompilerTest {
     }
 
     @DisplayName(".configure(...) returns the compiler object")
-    @ValueSource(classes = {JctCompilerConfigurer.class, JctSimpleCompilerConfigurer.class})
-    @ParameterizedTest(name = "for configurer of type {0}")
-    void configureReturnsTheCompiler(
-        Class<? extends JctCompilerConfigurer<?>> cls
-    ) throws Throwable {
+    @Test
+    void configureReturnsTheCompiler() throws Throwable {
       // Given
-      var configurer = mock(cls);
+      JctCompilerConfigurer<?> configurer = mock();
 
       // When
       var result = compiler.configure(configurer);
@@ -423,25 +546,46 @@ class AbstractJctCompilerTest {
     }
   }
 
-  @DisplayName(".getFlagBuilder() returns the flag builder")
-  @Test
-  void getFlagBuilderReturnsFlagBuilder() {
-    // Then
-    assertThat(compiler.getFlagBuilder()).isSameAs(flagBuilder);
-  }
-
-  @DisplayName(".getJsr199Compiler() returns the compiler")
-  @Test
-  void getJsr199CompilerReturnsTheCompiler() {
-    // Then
-    assertThat(compiler.getJsr199Compiler()).isSameAs(jsr199Compiler);
-  }
-
   @DisplayName(".getName() returns the name")
   @Test
   void getNameReturnsName() {
     // Then
-    assertThat(compiler.getName()).isSameAs(name);
+    assertThat(compiler.getName()).isEqualTo(name);
+  }
+
+  @DisplayName("AbstractJctCompiler#name tests")
+  @Nested
+  class NameTest {
+
+    @DisplayName(".name(...) sets the name")
+    @ValueSource(strings = {"foo", "bar baz", "bork"})
+    @ParameterizedTest(name = "for name = {0}")
+    void nameSetsTheName(String name) {
+      // When
+      compiler.name(name);
+
+      // Then
+      assertThatCompilerField("name").isEqualTo(name);
+    }
+
+    @DisplayName(".name(...) returns the compiler")
+    @Test
+    void nameReturnsTheCompiler() {
+      // When
+      var result = compiler.name("foo");
+
+      // Then
+      assertThat(result).isSameAs(compiler);
+    }
+
+    @DisplayName(".name(null) throws a NullPointerException")
+    @Test
+    void passingNullToNameThrowsNullPointerException() {
+      // Then
+      assertThatThrownBy(() -> compiler.name(null))
+          .isInstanceOf(NullPointerException.class)
+          .hasMessage("name");
+    }
   }
 
   @DisplayName(".isVerbose() returns the expected values")
@@ -629,6 +773,43 @@ class AbstractJctCompilerTest {
     }
   }
 
+  @DisplayName(".getCompilationMode() returns the expected values")
+  @EnumSource(CompilationMode.class)
+  @ParameterizedTest(name = "for compilationMode = {0}")
+  void getCompilationModeReturnsExpectedValue(CompilationMode expected) {
+    // Given
+    setFieldOnCompiler("compilationMode", expected);
+
+    // Then
+    assertThat(compiler.getCompilationMode()).isEqualTo(expected);
+  }
+
+  @DisplayName("AbstractJctCompiler#compilationMode tests")
+  @Nested
+  class CompilationModeTests {
+
+    @DisplayName(".compilationMode(...) sets the expected values")
+    @EnumSource(CompilationMode.class)
+    @ParameterizedTest(name = "for compilationMode = {0}")
+    void compilationModeSetsExpectedValue(CompilationMode expected) {
+      // When
+      compiler.compilationMode(expected);
+
+      // Then
+      assertThatCompilerField("compilationMode").isEqualTo(expected);
+    }
+
+    @DisplayName(".compilationMode(...) returns the compiler")
+    @Test
+    void compilationModeReturnsTheCompiler() {
+      // When
+      var result = compiler.compilationMode(CompilationMode.COMPILATION_AND_ANNOTATION_PROCESSING);
+
+      // Then
+      assertThat(result).isSameAs(compiler);
+    }
+  }
+
   @DisplayName(".getAnnotationProcessorOptions returns a copy of the expected value")
   @Test
   void getAnnotationProcessorOptionsReturnsCopyOfTheExpectedValue() {
@@ -793,6 +974,31 @@ class AbstractJctCompilerTest {
       // Then
       assertThat(result).isSameAs(compiler);
     }
+  }
+
+  @DisplayName(".getEffectiveRelease() returns the expected values")
+  @CsvSource({
+      "10,   , 12, 10",
+      "  , 11, 12, 11",
+      "  ,   , 12, 12",
+  })
+  @ParameterizedTest(name = "for release = {0}, target = {1}, defaultRelease = {2}, expect = {3}")
+  void getEffectiveReleaseReturnsExpectedValues(
+      @Nullable String release,
+      @Nullable String target,
+      String defaultRelease,
+      String expectedEffectiveRelease
+  ) {
+    // Given
+    var compiler = new CompilerImpl("test", defaultRelease);
+    compiler.release(release);
+    compiler.target(target);
+
+    // When
+    var actualEffectiveRelease = compiler.getEffectiveRelease();
+
+    // Then
+    assertThat(actualEffectiveRelease).isEqualTo(expectedEffectiveRelease);
   }
 
   @DisplayName(".getRelease() returns the expected values")
@@ -1184,7 +1390,6 @@ class AbstractJctCompilerTest {
     }
 
     @DisplayName(".locale(...) throws a NullPointerException if the locale is null")
-    @SuppressWarnings("DataFlowIssue")
     @Test
     void localeThrowsNullPointerExceptionIfNull() {
       // Then
@@ -1231,7 +1436,6 @@ class AbstractJctCompilerTest {
     }
 
     @DisplayName(".logCharset(...) throws a NullPointerException if the logCharset is null")
-    @SuppressWarnings("DataFlowIssue")
     @Test
     void logCharsetThrowsNullPointerExceptionIfNull() {
       // Then
@@ -1279,7 +1483,6 @@ class AbstractJctCompilerTest {
 
     @DisplayName(".fileManagerLoggingMode(...) throws a NullPointerException if "
         + "fileManagerLoggingMode is null")
-    @SuppressWarnings("DataFlowIssue")
     @Test
     void fileManagerLoggingModeThrowsNullPointerExceptionIfNull() {
       // Then
@@ -1327,7 +1530,6 @@ class AbstractJctCompilerTest {
 
     @DisplayName(".diagnosticLoggingMode(...) throws a NullPointerException "
         + "if diagnosticLoggingMode is null")
-    @SuppressWarnings("DataFlowIssue")
     @Test
     void diagnosticLoggingModeThrowsNullPointerExceptionIfNull() {
       // Then
@@ -1375,7 +1577,6 @@ class AbstractJctCompilerTest {
 
     @DisplayName(".annotationProcessorDiscovery(...) throws a NullPointerException "
         + "if annotationProcessorDiscovery is null")
-    @SuppressWarnings("DataFlowIssue")
     @Test
     void annotationProcessorDiscoveryThrowsNullPointerExceptionIfNull() {
       // Then
@@ -1400,6 +1601,61 @@ class AbstractJctCompilerTest {
   void toStringShouldReturnTheName() {
     // Then
     assertThat(compiler).hasToString(name);
+  }
+
+  @DisplayName(".getCompilationFactory() should build a new compilation factory impl")
+  @Test
+  void getCompilationFactoryBuildsCompilationFactoryImpl() {
+    // Given
+    try (var factoryCls = mockConstruction(JctCompilationFactoryImpl.class)) {
+      // When
+      var actualFactory = compiler.getCompilationFactory();
+
+      // Then
+      assertThat(factoryCls.constructed())
+          .singleElement()
+          // .satisfies to swap expected/actual
+          .satisfies(expectedFactory -> assertThat(actualFactory).isSameAs(expectedFactory));
+    }
+  }
+
+  @DisplayName(".buildFlags(...) applies the flags to the flag builder and builds them")
+  @Test
+  void buildFlagsBuildsTheExpectedFlags() {
+    // Given
+    var flagBuilder = mock(JctFlagBuilder.class, Answers.RETURNS_SELF);
+
+    var annotationProcessorOptions = setFieldOnCompiler("annotationProcessorOptions", someFlags());
+    var showDeprecationWarnings = setFieldOnCompiler("showDeprecationWarnings", someBoolean());
+    var failOnWarnings = setFieldOnCompiler("failOnWarnings", someBoolean());
+    var compilerOptions = setFieldOnCompiler("compilerOptions", someFlags());
+    var previewFeatures = setFieldOnCompiler("previewFeatures", someBoolean());
+    var release = setFieldOnCompiler("release", someRelease());
+    var source = setFieldOnCompiler("source", someRelease());
+    var target = setFieldOnCompiler("target", someRelease());
+    var verbose = setFieldOnCompiler("verbose", someBoolean());
+    var showWarnings = setFieldOnCompiler("showWarnings", someBoolean());
+
+    var expectedFlags = someFlags();
+    when(flagBuilder.build()).thenReturn(expectedFlags);
+
+    // When
+    var actualFlags = compiler.buildFlags(flagBuilder);
+
+    // Then
+    verify(flagBuilder).annotationProcessorOptions(same(annotationProcessorOptions));
+    verify(flagBuilder).showDeprecationWarnings(eq(showDeprecationWarnings));
+    verify(flagBuilder).failOnWarnings(eq(failOnWarnings));
+    verify(flagBuilder).compilerOptions(same(compilerOptions));
+    verify(flagBuilder).previewFeatures(eq(previewFeatures));
+    verify(flagBuilder).release(eq(release));
+    verify(flagBuilder).source(eq(source));
+    verify(flagBuilder).target(eq(target));
+    verify(flagBuilder).verbose(eq(verbose));
+    verify(flagBuilder).showWarnings(eq(showWarnings));
+    verify(flagBuilder).build();
+
+    assertThat(actualFlags).isEqualTo(expectedFlags);
   }
 
   /////////////////////
@@ -1430,23 +1686,42 @@ class AbstractJctCompilerTest {
   /// Helper methods and types ///
   ////////////////////////////////
 
-  static class CompilerImpl extends AbstractJctCompiler<CompilerImpl> {
+  class CompilerImpl extends AbstractJctCompiler<CompilerImpl> {
 
     private final String defaultRelease;
 
     CompilerImpl(
         String name,
-        JavaCompiler jsr199Compiler,
-        JctFlagBuilder flagBuilder,
         String defaultRelease
     ) {
-      super(name, jsr199Compiler, flagBuilder);
+      super(name);
       this.defaultRelease = defaultRelease;
     }
 
     @Override
     public String getDefaultRelease() {
       return defaultRelease;
+    }
+
+    @Override
+    public JctFlagBuilderFactory getFlagBuilderFactory() {
+      return flagBuilderFactory;
+    }
+
+    @Override
+    public Jsr199CompilerFactory getCompilerFactory() {
+      return jsr199CompilerFactory;
+    }
+
+    @Override
+    public JctFileManagerFactory getFileManagerFactory() {
+      return fileManagerFactory;
+    }
+
+    @Override
+    public List<String> buildFlags(JctFlagBuilder flagBuilder) {
+      // Promote this method to be public for testing.
+      return super.buildFlags(flagBuilder);
     }
   }
 
@@ -1477,13 +1752,14 @@ class AbstractJctCompilerTest {
     }
   }
 
-  void setFieldOnCompiler(String field, Object value) {
+  <T> T setFieldOnCompiler(String field, T value) {
     try {
       var fieldObj = AbstractJctCompiler.class.getDeclaredField(field);
       fieldObj.setAccessible(true);
       fieldObj.set(compiler, value);
+      return value;
     } catch (ReflectiveOperationException ex) {
-      fail("Failed to set field " + field, ex);
+      return fail("Failed to set field " + field, ex);
     }
   }
 }

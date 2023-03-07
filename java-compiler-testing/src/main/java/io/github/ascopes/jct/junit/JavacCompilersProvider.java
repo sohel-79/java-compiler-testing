@@ -17,6 +17,7 @@ package io.github.ascopes.jct.junit;
 
 import io.github.ascopes.jct.compilers.JctCompiler;
 import io.github.ascopes.jct.compilers.javac.JavacJctCompilerImpl;
+import io.github.ascopes.jct.utils.VisibleForTestingOnly;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.junit.jupiter.params.support.AnnotationConsumer;
@@ -33,14 +34,18 @@ public final class JavacCompilersProvider extends AbstractCompilersProvider
 
   /**
    * Initialise the provider.
+   *
+   * <p>This is only visible for testing purposes, users should have no need to
+   * initialise this class directly.
    */
+  @VisibleForTestingOnly
   public JavacCompilersProvider() {
     // Visible for testing only.
   }
 
   @Override
-  protected JctCompiler<?, ?> compilerForVersion(int release) {
-    return new JavacJctCompilerImpl("javac release " + release).release(release);
+  protected JctCompiler<?, ?> initializeNewCompiler() {
+    return new JavacJctCompilerImpl();
   }
 
   @Override
@@ -54,13 +59,15 @@ public final class JavacCompilersProvider extends AbstractCompilersProvider
   }
 
   @Override
+  @SuppressWarnings("removal")
   public void accept(JavacCompilerTest javacCompilers) {
     // Super is needed here to prevent IntelliJ getting confused.
     super.configure(
         javacCompilers.minVersion(),
         javacCompilers.maxVersion(),
         javacCompilers.modules(),
-        javacCompilers.configurers()
+        javacCompilers.configurers(),
+        javacCompilers.versionStrategy()
     );
   }
 }

@@ -15,9 +15,14 @@
  */
 package io.github.ascopes.jct.compilers.javac;
 
+import static java.util.Objects.requireNonNull;
+
 import io.github.ascopes.jct.compilers.AbstractJctCompiler;
+import io.github.ascopes.jct.compilers.JctFlagBuilderFactory;
+import io.github.ascopes.jct.compilers.Jsr199CompilerFactory;
+import io.github.ascopes.jct.filemanagers.JctFileManagerFactory;
+import io.github.ascopes.jct.filemanagers.impl.JctFileManagerFactoryImpl;
 import javax.lang.model.SourceVersion;
-import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
@@ -37,36 +42,7 @@ public final class JavacJctCompilerImpl extends AbstractJctCompiler<JavacJctComp
    * Initialize a new Java compiler.
    */
   public JavacJctCompilerImpl() {
-    this(ToolProvider.getSystemJavaCompiler());
-  }
-
-  /**
-   * Initialize a new Java compiler.
-   *
-   * @param jsr199Compiler the JSR-199 compiler backend to use.
-   */
-  public JavacJctCompilerImpl(JavaCompiler jsr199Compiler) {
-    this(NAME, jsr199Compiler);
-  }
-
-  /**
-   * Initialize a new Java compiler.
-   *
-   * @param name the name to give the compiler.
-   */
-  public JavacJctCompilerImpl(String name) {
-    this(name, ToolProvider.getSystemJavaCompiler());
-  }
-
-  /**
-   * Initialize a new Java compiler.
-   *
-   * @param name           the name to give the compiler.
-   * @param jsr199Compiler the JSR-199 compiler backend to use.
-   */
-  public JavacJctCompilerImpl(String name, JavaCompiler jsr199Compiler) {
-    super(name, jsr199Compiler, new JavacJctFlagBuilderImpl());
-    addCompilerOptions("-implicit:class");
+    super(NAME);
   }
 
   @Override
@@ -74,24 +50,63 @@ public final class JavacJctCompilerImpl extends AbstractJctCompiler<JavacJctComp
     return Integer.toString(getLatestSupportedVersionInt(false));
   }
 
+  @Override
+  public JctFlagBuilderFactory getFlagBuilderFactory() {
+    return JavacJctFlagBuilderImpl::new;
+  }
+
+  @Override
+  public Jsr199CompilerFactory getCompilerFactory() {
+    // RequireNonNull to ensure the return result is non-null, since the ToolProvider
+    // method is not annotated.
+    return () -> requireNonNull(ToolProvider.getSystemJavaCompiler());
+  }
+
+  @Override
+  public JctFileManagerFactory getFileManagerFactory() {
+    return new JctFileManagerFactoryImpl(this);
+  }
+
   /**
    * Get the minimum version of Javac that is supported.
+   *
+   * <p>Note, once Java 8 reaches the end of the EOL support window,
+   * the {@code modules} parameter will be ignored and deprecated in a future release, instead
+   * always defaulting to {@code true}.
    *
    * @param modules whether modules need to be supported or not.
    * @return the minimum supported version.
    */
   public static int getEarliestSupportedVersionInt(boolean modules) {
-    // Currently we set a hard limit on Java 8 for non-modules and Java 9 for modules.
-    // In future implementations of the JDK, however, this will change to support Java 9 or later
-    // as a minimum version. When this eventually does happen, this return value may need further
-    // logic behind it to calculate the right behaviour.
-    return modules
-        ? SourceVersion.RELEASE_9.ordinal()
-        : SourceVersion.RELEASE_8.ordinal();
+    // Purposely do not hardcode members of the SourceVersion enum here other
+    // than utility methods, as this prevents compilation problems on various
+    // versions of the JDK when certain members are unavailable.
+
+    var latestSupported = SourceVersion.latestSupported().ordinal();
+
+    //noinspection NonStrictComparisonCanBeEquality
+    if (latestSupported >= 20) {
+      // JDK 20 marks source-version 8 as obsolete, and emits compilation
+      // warnings that may break tests using "fail on warnings". To avoid this,
+      // disallow compiling Java 8 sources under Javac in JDK 20 or newer
+      return 9;
+    }
+
+    // Anything below Java 20 allows Java 9 as the minimum for JPMS support,
+    // or Java 8 for non-JPMS compilations.
+    if (modules) {
+      return 9;
+    }
+
+    return 8;
   }
 
   /**
    * Get the maximum version of Javac that is supported.
+   *
+   * <p>Note, once Java 8 reaches the end of the EOL support window,
+   * the {@code modules} parameter will be ignored and deprecated in a future release, instead
+   * always defaulting to {@code true}.
    *
    * @param modules whether to require module support or not. This is currently ignored but exists
    *                for future compatibility purposes.

@@ -22,22 +22,20 @@ import io.github.ascopes.jct.workspaces.ManagedDirectory;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Locale;
-import javax.annotation.CheckReturnValue;
-import javax.annotation.Nullable;
-import javax.annotation.WillClose;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,23 +73,14 @@ public final class FileBuilderImpl implements FileBuilder {
   }
 
   @Override
-  public ManagedDirectory withContents(String... lines) {
-    return withContents(DEFAULT_CHARSET, lines);
+  public ManagedDirectory asJarFrom(ManagedDirectory directory) {
+    return asJarFrom(directory.getPath());
   }
 
   @Override
-  public ManagedDirectory withContents(Charset charset, String... lines) {
-    return withContents(String.join("\n", lines).getBytes(charset));
-  }
-
-  @Override
-  public ManagedDirectory withContents(byte[] contents) {
-    return uncheckedIo(() -> createFile(new ByteArrayInputStream(contents)));
-  }
-
-  @Override
-  public ManagedDirectory copiedFromClassPath(String resource) {
-    return copiedFromClassPath(currentCallerClassLoader(), resource);
+  public ManagedDirectory asJarFrom(Path directory) {
+    uncheckedIo(() -> JarFactoryImpl.getInstance().createJarFrom(targetPath, directory));
+    return parent;
   }
 
   @Override
@@ -99,12 +88,17 @@ public final class FileBuilderImpl implements FileBuilder {
     return uncheckedIo(() -> {
       try (var input = classLoader.getResourceAsStream(resource)) {
         if (input == null) {
-          throw new FileNotFoundException("classpath:" + resource);
+          throw new NoSuchFileException("classpath:" + resource);
         }
 
         return createFile(input);
       }
     });
+  }
+
+  @Override
+  public ManagedDirectory copiedFromClassPath(String resource) {
+    return copiedFromClassPath(currentCallerClassLoader(), resource);
   }
 
   @Override
@@ -128,16 +122,30 @@ public final class FileBuilderImpl implements FileBuilder {
   }
 
   @Override
+  public ManagedDirectory fromInputStream(InputStream inputStream) {
+    return uncheckedIo(() -> createFile(inputStream));
+  }
+
+  @Override
   public ManagedDirectory thatIsEmpty() {
     return fromInputStream(InputStream.nullInputStream());
   }
 
   @Override
-  public ManagedDirectory fromInputStream(@WillClose InputStream inputStream) {
-    return uncheckedIo(() -> createFile(inputStream));
+  public ManagedDirectory withContents(byte[] contents) {
+    return uncheckedIo(() -> createFile(new ByteArrayInputStream(contents)));
   }
 
-  @CheckReturnValue
+  @Override
+  public ManagedDirectory withContents(Charset charset, String... lines) {
+    return withContents(String.join("\n", lines).getBytes(charset));
+  }
+
+  @Override
+  public ManagedDirectory withContents(String... lines) {
+    return withContents(DEFAULT_CHARSET, lines);
+  }
+
   private ManagedDirectory createFile(InputStream input) throws IOException {
     Files.createDirectories(targetPath.getParent());
 
@@ -155,7 +163,6 @@ public final class FileBuilderImpl implements FileBuilder {
     }
   }
 
-  @CheckReturnValue
   private static InputStream maybeBuffer(InputStream input, @Nullable String scheme) {
     if (input instanceof BufferedInputStream || input instanceof ByteArrayInputStream) {
       return input;
@@ -172,12 +179,11 @@ public final class FileBuilderImpl implements FileBuilder {
       case "ram":
         return input;
       default:
-        LOGGER.trace("Decided to wrap input {} in a buffer", input);
+        LOGGER.trace("Decided to wrap input {} in a buffer - scheme was {}", input, scheme);
         return new BufferedInputStream(input);
     }
   }
 
-  @CheckReturnValue
   private static ClassLoader currentCallerClassLoader() {
     return Thread.currentThread().getContextClassLoader();
   }

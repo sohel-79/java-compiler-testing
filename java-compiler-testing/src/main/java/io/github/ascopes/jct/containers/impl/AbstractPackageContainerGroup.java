@@ -28,13 +28,12 @@ import io.github.ascopes.jct.workspaces.PathRoot;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.Set;
-import javax.annotation.Nullable;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import javax.tools.JavaFileObject.Kind;
@@ -145,7 +144,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public Path getFile(String fragment, String... fragments) {
     for (var container : containers) {
       var result = container.getFile(fragment, fragments);
@@ -163,7 +161,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public PathFileObject getFileForInput(String packageName, String relativeName) {
     for (var container : containers) {
       var file = container.getFileForInput(packageName, relativeName);
@@ -176,7 +173,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public PathFileObject getFileForOutput(String packageName, String relativeName) {
     for (var container : containers) {
       var file = container.getFileForOutput(packageName, relativeName);
@@ -189,7 +185,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public PathFileObject getJavaFileForInput(String className, Kind kind) {
     for (var container : containers) {
       var file = container.getJavaFileForInput(className, kind);
@@ -202,7 +197,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public PathFileObject getJavaFileForOutput(String className, Kind kind) {
     for (var container : containers) {
       var file = container.getJavaFileForOutput(className, kind);
@@ -239,7 +233,6 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  @Nullable
   public String inferBinaryName(PathFileObject fileObject) {
     for (var container : containers) {
       var name = container.inferBinaryName(fileObject);
@@ -257,15 +250,17 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
   }
 
   @Override
-  public void listFileObjects(
+  public Set<JavaFileObject> listFileObjects(
       String packageName,
       Set<? extends Kind> kinds,
-      boolean recurse,
-      Collection<JavaFileObject> collection
+      boolean recurse
   ) throws IOException {
+    // XXX: could this be run in parallel?
+    var collection = new HashSet<JavaFileObject>();
     for (var container : containers) {
       container.listFileObjects(packageName, kinds, recurse, collection);
     }
+    return collection;
   }
 
   /**
@@ -273,5 +268,7 @@ public abstract class AbstractPackageContainerGroup implements PackageContainerG
    *
    * @return the classloader.
    */
-  protected abstract ClassLoader createClassLoader();
+  protected ClassLoader createClassLoader() {
+    return new PackageContainerGroupUrlClassLoader(this);
+  }
 }

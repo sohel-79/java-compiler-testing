@@ -19,20 +19,15 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.ascopes.jct.compilers.JctCompilation;
-import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
-import io.github.ascopes.jct.repr.DiagnosticListRepresentation;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import javax.annotation.Nullable;
+import io.github.ascopes.jct.repr.TraceDiagnosticListRepresentation;
+import java.util.Collection;
 import javax.tools.Diagnostic.Kind;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.StandardLocation;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions that apply to a {@link JctCompilation}.
@@ -41,21 +36,8 @@ import org.assertj.core.api.AbstractAssert;
  * @since 0.0.1
  */
 @API(since = "0.0.1", status = Status.STABLE)
-@SuppressWarnings("UnusedReturnValue")
-public final class JctCompilationAssert extends AbstractAssert<JctCompilationAssert, JctCompilation> {
-
-  private static final Set<Kind> WARNING_DIAGNOSTIC_KINDS = Stream
-      .of(Kind.WARNING, Kind.MANDATORY_WARNING)
-      .collect(Collectors.toUnmodifiableSet());
-
-  private static final Set<Kind> ERROR_DIAGNOSTIC_KINDS = Stream
-      .of(Kind.ERROR)
-      .collect(Collectors.toUnmodifiableSet());
-
-  private static final Set<Kind> WARNING_AND_ERROR_DIAGNOSTIC_KINDS = Stream
-      .of(WARNING_DIAGNOSTIC_KINDS, ERROR_DIAGNOSTIC_KINDS)
-      .flatMap(Set::stream)
-      .collect(Collectors.toUnmodifiableSet());
+public final class JctCompilationAssert extends
+    AbstractAssert<JctCompilationAssert, JctCompilation> {
 
   /**
    * Initialize this compilation assertion.
@@ -79,17 +61,11 @@ public final class JctCompilationAssert extends AbstractAssert<JctCompilationAss
       // If we have error diagnostics, add them to the error message to provide helpful debugging
       // information. If we are treating warnings as errors, then we want to include those in this
       // as well.
-      Predicate<TraceDiagnostic<?>> isErrorDiagnostic = actual.isFailOnWarnings()
-          ? diag -> WARNING_AND_ERROR_DIAGNOSTIC_KINDS.contains(diag.getKind())
-          : diag -> ERROR_DIAGNOSTIC_KINDS.contains(diag.getKind());
+      var diagnosticKinds = actual.isFailOnWarnings()
+          ? DiagnosticKindAssert.WARNING_AND_ERROR_DIAGNOSTIC_KINDS
+          : DiagnosticKindAssert.ERROR_DIAGNOSTIC_KINDS;
 
-      var diagnostics = actual
-          .getDiagnostics()
-          .stream()
-          .filter(isErrorDiagnostic)
-          .collect(toUnmodifiableList());
-
-      failWithDiagnostics(diagnostics, "Expected a successful compilation, but it failed.");
+      failWithDiagnostics(diagnosticKinds, "Expected a successful compilation, but it failed.");
     }
 
     return myself;
@@ -121,14 +97,17 @@ public final class JctCompilationAssert extends AbstractAssert<JctCompilationAss
   public JctCompilationAssert isFailure() {
     isNotNull();
 
-    if (actual.isSuccessful()) {
-      var warnings = actual
-          .getDiagnostics()
-          .stream()
-          .filter(kind -> WARNING_DIAGNOSTIC_KINDS.contains(kind.getKind()))
-          .collect(toUnmodifiableList());
+    // If we fail due to failOnWarnings, we expect the compiler itself to have failed the
+    // build because of this. If the compiler ignores this flag and succeeds, then this method will
+    // follow that behaviour and treat the compilation as a success.
 
-      failWithDiagnostics(warnings, "Expected compilation to fail, but it succeeded.");
+    if (actual.isSuccessful()) {
+      // If we have any warnings, we should show them in the error message as it might be useful
+      // to the user.
+      failWithDiagnostics(
+          DiagnosticKindAssert.WARNING_AND_ERROR_DIAGNOSTIC_KINDS,
+          "Expected compilation to fail, but it succeeded."
+      );
     }
 
     return myself;
@@ -314,20 +293,27 @@ public final class JctCompilationAssert extends AbstractAssert<JctCompilationAss
   }
 
   private void failWithDiagnostics(
-      List<? extends TraceDiagnostic<?>> diagnostics,
+      Collection<? extends Kind> kindsToDisplay,
       String message,
       Object... args
   ) {
+    var diagnostics = actual
+        .getDiagnostics()
+        .stream()
+        .filter(diagnostic -> kindsToDisplay.contains(diagnostic.getKind()))
+        .collect(toUnmodifiableList());
+
     if (diagnostics.isEmpty()) {
       failWithMessage(message, args);
     } else {
       var fullMessage = String.join(
-          "\n\n",
+          "\n",
           args.length > 0
               ? String.format(message, args)
               : message,
+          "",
           "Diagnostics:",
-          DiagnosticListRepresentation.getInstance().toStringOf(diagnostics)
+          TraceDiagnosticListRepresentation.getInstance().toStringOf(diagnostics)
       );
 
       failWithMessage(fullMessage);

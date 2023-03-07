@@ -23,12 +23,12 @@ import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
 import io.github.ascopes.jct.filemanagers.PathFileObject;
 import io.github.ascopes.jct.utils.UtilityClass;
 import java.util.List;
-import javax.annotation.Nullable;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Helper class to provide fluent creation of assertions for compilations.
@@ -36,7 +36,6 @@ import org.apiguardian.api.API.Status;
  * @author Ashley Scopes
  * @since 0.0.1
  */
-@SuppressWarnings("unused")
 @API(since = "0.0.1", status = Status.STABLE)
 public final class JctAssertions extends UtilityClass {
 
@@ -69,7 +68,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static ModuleContainerGroupAssert assertThat(
-      @Nullable ModuleContainerGroup moduleContainerGroup
+      ModuleContainerGroup moduleContainerGroup
   ) {
     return assertThatContainerGroup(moduleContainerGroup);
   }
@@ -85,7 +84,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static OutputContainerGroupAssert assertThat(
-      @Nullable OutputContainerGroup outputContainerGroup
+      OutputContainerGroup outputContainerGroup
   ) {
     return assertThatContainerGroup(outputContainerGroup);
   }
@@ -101,7 +100,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static PackageContainerGroupAssert assertThat(
-      @Nullable PackageContainerGroup packageContainerGroup
+      PackageContainerGroup packageContainerGroup
   ) {
     return assertThatContainerGroup(packageContainerGroup);
   }
@@ -117,7 +116,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static TraceDiagnosticAssert assertThat(
-      @Nullable TraceDiagnostic<? extends JavaFileObject> diagnostic
+      TraceDiagnostic<? extends JavaFileObject> diagnostic
   ) {
     return assertThatDiagnostic(diagnostic);
   }
@@ -160,7 +159,7 @@ public final class JctAssertions extends UtilityClass {
    * @param kind the diagnostic kind to assert on.
    * @return the assertion.
    */
-  public static DiagnosticKindAssert assertThat(@Nullable Diagnostic.Kind kind) {
+  public static DiagnosticKindAssert assertThat(Diagnostic.@Nullable Kind kind) {
     return assertThatKind(kind);
   }
 
@@ -174,7 +173,7 @@ public final class JctAssertions extends UtilityClass {
    * @param kind the Java file object kind to assert on.
    * @return the assertion.
    */
-  public static JavaFileObjectKindAssert assertThat(@Nullable JavaFileObject.Kind kind) {
+  public static JavaFileObjectKindAssert assertThat(JavaFileObject.@Nullable Kind kind) {
     return assertThatKind(kind);
   }
 
@@ -209,7 +208,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static ModuleContainerGroupAssert assertThatContainerGroup(
-      @Nullable ModuleContainerGroup moduleContainerGroup
+      ModuleContainerGroup moduleContainerGroup
   ) {
     return new ModuleContainerGroupAssert(moduleContainerGroup);
   }
@@ -221,7 +220,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static OutputContainerGroupAssert assertThatContainerGroup(
-      @Nullable OutputContainerGroup outputContainerGroup
+      OutputContainerGroup outputContainerGroup
   ) {
     return new OutputContainerGroupAssert(outputContainerGroup);
   }
@@ -233,7 +232,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static PackageContainerGroupAssert assertThatContainerGroup(
-      @Nullable PackageContainerGroup packageContainerGroup
+      PackageContainerGroup packageContainerGroup
   ) {
     return new PackageContainerGroupAssert(packageContainerGroup);
   }
@@ -245,7 +244,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static TraceDiagnosticAssert assertThatDiagnostic(
-      @Nullable TraceDiagnostic<? extends JavaFileObject> diagnostic
+      TraceDiagnostic<? extends JavaFileObject> diagnostic
   ) {
     return new TraceDiagnosticAssert(diagnostic);
   }
@@ -257,7 +256,7 @@ public final class JctAssertions extends UtilityClass {
    * @return the assertion.
    */
   public static TraceDiagnosticListAssert assertThatDiagnostics(
-      @Nullable List<? extends TraceDiagnostic<? extends JavaFileObject>> diagnostics
+      List<? extends TraceDiagnostic<? extends JavaFileObject>> diagnostics
   ) {
     return new TraceDiagnosticListAssert(diagnostics);
   }
@@ -288,7 +287,7 @@ public final class JctAssertions extends UtilityClass {
    * @param kind the diagnostic kind to assert on.
    * @return the assertion.
    */
-  public static DiagnosticKindAssert assertThatKind(@Nullable Diagnostic.Kind kind) {
+  public static DiagnosticKindAssert assertThatKind(Diagnostic.@Nullable Kind kind) {
     return new DiagnosticKindAssert(kind);
   }
 
@@ -298,7 +297,7 @@ public final class JctAssertions extends UtilityClass {
    * @param kind the Java file object kind to assert on.
    * @return the assertion.
    */
-  public static JavaFileObjectKindAssert assertThatKind(@Nullable JavaFileObject.Kind kind) {
+  public static JavaFileObjectKindAssert assertThatKind(JavaFileObject.@Nullable Kind kind) {
     return new JavaFileObjectKindAssert(kind);
   }
 
@@ -312,3 +311,4 @@ public final class JctAssertions extends UtilityClass {
     return new LocationAssert(location);
   }
 }
+

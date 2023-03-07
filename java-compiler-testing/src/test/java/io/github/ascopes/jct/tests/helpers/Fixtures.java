@@ -15,7 +15,8 @@
  */
 package io.github.ascopes.jct.tests.helpers;
 
-import static io.github.ascopes.jct.tests.helpers.GenericMock.mockRaw;
+import static java.util.stream.Collectors.joining;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -26,27 +27,28 @@ import com.google.common.jimfs.Feature;
 import com.google.common.jimfs.Jimfs;
 import com.google.common.jimfs.PathType;
 import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
+import io.github.ascopes.jct.utils.LoomPolyfill;
 import io.github.ascopes.jct.workspaces.PathRoot;
 import java.io.IOException;
-import java.lang.module.ModuleReference;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.processing.Processor;
 import javax.tools.Diagnostic;
+import javax.tools.Diagnostic.Kind;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
-import javax.tools.JavaFileObject.Kind;
 import org.mockito.quality.Strictness;
 
 /**
@@ -54,7 +56,6 @@ import org.mockito.quality.Strictness;
  *
  * @author Ashley Scopes
  */
-@SuppressWarnings("NullableProblems")
 public final class Fixtures {
 
   private static final Random RANDOM = new Random();
@@ -90,7 +91,8 @@ public final class Fixtures {
    * @return some int value.
    */
   public static int someInt(int min, int max) {
-    return RANDOM.nextInt(max - min) + min;
+    // Use longs internally to deal with problems with negative values.
+    return (int) someLong((long) max - min) + min;
   }
 
   /**
@@ -100,23 +102,10 @@ public final class Fixtures {
    * @return some long value.
    */
   public static long someLong(long max) {
-    // nextLong(long) is not on older JDKs, so let's compute this manually.
-    // This uses the same algorithm used in /java.base/jdk/internal/util/random/RandomSupport.java
-    // as of JDK 19 in Amazon Corretto.
-    var m = max - 1;
-    var r = RANDOM.nextLong();
-    if ((max & m) == 0L) {
-      r &= m;
-    } else {
-      // This discards over-represented values for subsequent calls.
-      var u = r >>> 1;
-      while (u + m - (u % max) < 0L) {
-        r = u % max;
-        u = RANDOM.nextLong() >>> 1;
-      }
-    }
-
-    return r;
+    var nextLong = RANDOM.nextLong();
+    // Remove sign
+    nextLong &= Long.MAX_VALUE;
+    return nextLong % max;
   }
 
   /**
@@ -149,7 +138,26 @@ public final class Fixtures {
         .generate(UUID::randomUUID)
         .map(UUID::toString)
         .limit(someInt(5, 15))
-        .collect(Collectors.joining("\n"));
+        .collect(joining("\n"));
+  }
+
+  /**
+   * Get some random binary data.
+   *
+   * @return the binary data.
+   */
+  public static byte[] someBinaryData() {
+    var boxed = Stream
+        .generate(() -> RANDOM.nextInt(Byte.MAX_VALUE - Byte.MIN_VALUE) + Byte.MIN_VALUE)
+        .map(Integer::byteValue)
+        .limit(someInt(10, 255))
+        .toArray(Byte[]::new);
+
+    var unboxed = new byte[boxed.length];
+    for (var i = 0; i < boxed.length; ++i) {
+      unboxed[i] = boxed[i];
+    }
+    return unboxed;
   }
 
   /**
@@ -172,20 +180,48 @@ public final class Fixtures {
    * @return the mock.
    */
   public static Diagnostic<JavaFileObject> someDiagnostic() {
-    return mockRaw(Diagnostic.class)
-        .<Diagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    Diagnostic<JavaFileObject> mock = mock(withSettings().strictness(Strictness.LENIENT));
+    createStubMethodsFor(mock);
+    return mock;
   }
 
   /**
-   * Get a tracee diagnostic mock.
+   * Get a trace diagnostic mock.
    *
    * @return the mock.
    */
   public static TraceDiagnostic<JavaFileObject> someTraceDiagnostic() {
-    return mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> mock = mock(withSettings().strictness(Strictness.LENIENT));
+    createStubMethodsFor(mock);
+    when(mock.getTimestamp()).thenReturn(Instant.now());
+    when(mock.getThreadName()).thenReturn(Thread.currentThread().getName());
+    when(mock.getThreadId()).thenReturn(LoomPolyfill.getThreadId(Thread.currentThread()));
+    when(mock.getStackTrace()).thenReturn(someStackTraceList());
+    return mock;
+  }
+
+  /**
+   * Get a trace diagnostic mock.
+   *
+   * @param kind the kind of the diagnostic to create.
+   * @return the mock.
+   */
+  public static TraceDiagnostic<JavaFileObject> someTraceDiagnostic(Diagnostic.Kind kind) {
+    var mock = someTraceDiagnostic();
+    when(mock.getKind()).thenReturn(kind);
+    return mock;
+  }
+
+  /**
+   * Get a real stack trace array.
+   *
+   * @return the mock.
+   */
+  public static StackTraceElement[] someRealStackTrace() {
+    var trace = Arrays.asList(Thread.currentThread().getStackTrace());
+    // No need to have 500 stack trace frames in test logs.
+    var shortTrace = trace.subList(2, Math.min(10, trace.size()));
+    return shortTrace.toArray(StackTraceElement[]::new);
   }
 
   /**
@@ -194,64 +230,7 @@ public final class Fixtures {
    * @return the mock.
    */
   public static List<StackTraceElement> someStackTraceList() {
-    return mockRaw(List.class)
-        .<List<StackTraceElement>>upcastedTo()
-        .build();
-  }
-
-  /**
-   * Get a list of some trace diagnostics.
-   *
-   * @return some trace diagnostics.
-   */
-  public static List<TraceDiagnostic<? extends JavaFileObject>> someTraceDiagnostics() {
-    return Stream
-        .generate(Fixtures::someTraceDiagnostic)
-        .limit(someInt(3, 8))
-        .collect(Collectors.toList());
-  }
-
-  /**
-   * Get some compilation units.
-   *
-   * @return some compilation units.
-   */
-  public static List<JavaFileObject> someCompilationUnits() {
-    return Stream
-        .generate(() -> mock(JavaFileObject.class, withSettings().strictness(Strictness.LENIENT)))
-        .peek(mock -> when(mock.getName()).thenReturn(someText()))
-        .limit(someInt(3, 8))
-        .collect(Collectors.toList());
-  }
-
-  /**
-   * Get some unchecked exception with a stacktrace.
-   *
-   * @return some exception.
-   */
-  public static Throwable someUncheckedException() {
-    var message = Stream
-        .generate(UUID::randomUUID)
-        .map(UUID::toString)
-        .limit(someInt(1, 4))
-        .collect(Collectors.joining(" blah blah "));
-    return new RuntimeException(message)
-        .fillInStackTrace();
-  }
-
-  /**
-   * Get some IO exception with a stacktrace.
-   *
-   * @return some exception.
-   */
-  public static Throwable someIoException() {
-    var message = Stream
-        .generate(UUID::randomUUID)
-        .map(UUID::toString)
-        .limit(someInt(1, 4))
-        .collect(Collectors.joining(" blah blah "));
-    return new IOException(message)
-        .fillInStackTrace();
+    return List.of(someRealStackTrace());
   }
 
   /**
@@ -271,34 +250,71 @@ public final class Fixtures {
   }
 
   /**
-   * Get some locale.
-   *
-   * @return some locale.
-   */
-  public static Locale someLocale() {
-    return oneOf(
-        Locale.ROOT,
-        Locale.US,
-        Locale.UK,
-        Locale.ENGLISH,
-        Locale.GERMAN,
-        Locale.JAPAN,
-        Locale.GERMANY,
-        Locale.JAPANESE,
-        Locale.SIMPLIFIED_CHINESE,
-        Locale.TRADITIONAL_CHINESE,
-        Locale.CHINESE,
-        Locale.CHINA
-    );
-  }
-
-  /**
    * Get some string release version.
    *
    * @return some string release version.
    */
   public static String someRelease() {
     return Integer.toString(RANDOM.nextInt(11) + 11);
+  }
+
+  /**
+   * Get a valid random module name.
+   *
+   * @return the valid module name.
+   */
+  public static String someModuleName() {
+    return Stream
+        .generate(() -> Stream
+            .generate(() -> (char) someInt('a', 'z'))
+            .map(Objects::toString)
+            .limit(someInt(1, 10))
+            .collect(joining()))
+        .limit(someInt(1, 5))
+        .collect(joining("."));
+  }
+
+  /**
+   * Get a valid random package name.
+   *
+   * @return the valid package name.
+   */
+  public static String somePackageName() {
+    return Stream
+        .generate(() -> Stream
+            .generate(() -> (char) someInt('a', 'z'))
+            .map(Objects::toString)
+            .limit(someInt(1, 10))
+            .collect(joining()))
+        .limit(someInt(1, 5))
+        .collect(joining("."));
+  }
+
+  /**
+   * Get a valid random class name.
+   *
+   * @return the valid class name.
+   */
+  public static String someClassName() {
+    var firstChar = (char) someInt('A', 'Z');
+    var restOfClassName = Stream
+        .generate(() -> (char) someInt('a', 'z'))
+        .map(Objects::toString)
+        .limit(someInt(1, 10))
+        .collect(joining());
+
+    return somePackageName() + "." + firstChar + restOfClassName;
+  }
+
+  /**
+   * Get some valid binary name. It may or may not be for a module.
+   *
+   * @return the binary name.
+   */
+  public static String someBinaryName() {
+    return someBoolean()
+        ? someModuleName() + "/" + someClassName()
+        : someClassName();
   }
 
   /**
@@ -314,7 +330,7 @@ public final class Fixtures {
         .strictness(Strictness.LENIENT));
 
     when(obj.getName()).thenReturn(name);
-    when(obj.getKind()).thenReturn(Kind.SOURCE);
+    when(obj.getKind()).thenReturn(JavaFileObject.Kind.SOURCE);
     return obj;
   }
 
@@ -324,7 +340,16 @@ public final class Fixtures {
    * @return some mock location.
    */
   public static Location someLocation() {
-    return mock(Location.class, "Location-" + someText());
+    var name = "Location-" + someText();
+
+    Location location = mock(withSettings()
+        .strictness(Strictness.LENIENT)
+        .name(name));
+
+    when(location.getName()).thenReturn(name);
+    when(location.isOutputLocation()).thenReturn(someBoolean());
+    when(location.isModuleOrientedLocation()).thenReturn(someBoolean());
+    return location;
   }
 
   /**
@@ -333,7 +358,22 @@ public final class Fixtures {
    * @return some mock path root object.
    */
   public static PathRoot somePathRoot() {
-    return mock(PathRoot.class, "PathRoot-" + someText());
+    var name = "PathRoot-" + someText();
+    var path = someRelativePath().resolve(name);
+    PathRoot pathRoot = mock(withSettings()
+        .strictness(Strictness.LENIENT)
+        .name(path.toString()));
+    when(pathRoot.getPath()).thenReturn(path);
+    when(pathRoot.getUri()).thenReturn(path.toUri());
+
+    try {
+      when(pathRoot.getUrl()).thenReturn(path.toUri().toURL());
+    } catch (Exception ex) {
+      throw new IllegalStateException("unreachable", ex);
+    }
+
+    when(pathRoot.getParent()).thenReturn(null);
+    return pathRoot;
   }
 
   /**
@@ -352,12 +392,28 @@ public final class Fixtures {
   }
 
   /**
-   * Get some module reference.
+   * Get some dummy absolute path.
    *
-   * @return the module reference.
+   * @return some dummy absolute path.
    */
-  public static ModuleReference someModuleReference() {
-    return mock(ModuleReference.class);
+  public static Path someAbsolutePath() {
+    return somePath().resolve("some-absolute-path").toAbsolutePath();
+  }
+
+  /**
+   * Get some relative path.
+   *
+   * @return some dummy relative path.
+   */
+  public static Path someRelativePath() {
+    var absolutePath = someAbsolutePath();
+    var relativePath = absolutePath;
+
+    for (var i = 0; i < someInt(1, 4); ++i) {
+      relativePath = absolutePath.resolve(someText());
+    }
+
+    return absolutePath.relativize(relativePath.resolve("some-relative-path"));
   }
 
   /**
@@ -369,15 +425,6 @@ public final class Fixtures {
    */
   public static TempFileSystem someTemporaryFileSystem() {
     return new TempFileSystem();
-  }
-
-  /**
-   * Get some annotation processor.
-   *
-   * @return some annotation processor.
-   */
-  public static Processor someAnnotationProcessor() {
-    return mock(Processor.class, someText() + " processor");
   }
 
   /**
@@ -423,6 +470,20 @@ public final class Fixtures {
     }
   }
 
+  private static void createStubMethodsFor(Diagnostic<JavaFileObject> diagnostic) {
+    var col = someLong(1, 100);
+    when(diagnostic.getColumnNumber()).thenReturn(col);
+    var line = someLong(1, 2_000);
+    when(diagnostic.getLineNumber()).thenReturn(line);
+    var startPos = 1 + ((line * col) / 2) + someLong(1, 10_000);
+    when(diagnostic.getStartPosition()).thenReturn(startPos);
+    when(diagnostic.getEndPosition()).thenReturn(someLong(startPos, startPos + 10_000));
+    when(diagnostic.getPosition()).thenReturn(startPos);
+    when(diagnostic.getKind()).thenReturn(oneOf(Diagnostic.Kind.class));
+    when(diagnostic.getSource()).thenReturn(null);
+    when(diagnostic.getMessage(any())).thenReturn(someText());
+  }
+
   /**
    * A temporary file system.
    */
@@ -440,7 +501,6 @@ public final class Fixtures {
           .setAttributeViews("basic", "posix")
           .setRoots("/")
           .setWorkingDirectory("/")
-          .setPathEqualityUsesCanonicalForm(true)
           .build();
 
       fs = Jimfs.newFileSystem(name, config);

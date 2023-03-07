@@ -22,11 +22,11 @@ import io.github.ascopes.jct.utils.ToStringBuilder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-import javax.annotation.Nullable;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A wrapper around a {@link Diagnostic} which contains additional information about where the
@@ -57,7 +57,7 @@ public class TraceDiagnostic<S extends JavaFileObject> implements Diagnostic<S> 
   public TraceDiagnostic(
       Instant timestamp,
       long threadId,
-      @Nullable String threadName,
+      String threadName,
       List<StackTraceElement> stackTrace,
       Diagnostic<? extends S> original
   ) {
@@ -73,7 +73,6 @@ public class TraceDiagnostic<S extends JavaFileObject> implements Diagnostic<S> 
     return original.getKind();
   }
 
-  @Nullable
   @Override
   public S getSource() {
     return original.getSource();
@@ -104,7 +103,6 @@ public class TraceDiagnostic<S extends JavaFileObject> implements Diagnostic<S> 
     return original.getColumnNumber();
   }
 
-  @Nullable
   @Override
   public String getCode() {
     return original.getCode();
@@ -138,7 +136,6 @@ public class TraceDiagnostic<S extends JavaFileObject> implements Diagnostic<S> 
    *
    * @return the thread name, if known, or else {@code null}.
    */
-  @Nullable
   public String getThreadName() {
     return threadName;
   }

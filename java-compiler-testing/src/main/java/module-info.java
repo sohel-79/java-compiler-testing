@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import io.github.ascopes.jct.workspaces.RamFileSystemProvider;
+
 /**
  * A framework for performing exhaustive integration testing against Java compilers in modern Java
  * libraries, with a focus on full JPMS support.
@@ -86,16 +89,24 @@
  * </code></pre>
  */
 module io.github.ascopes.jct {
+
+  ////////////////////
+  /// DEPENDENCIES ///
+  ////////////////////
+
   requires java.compiler;
   requires java.management;
   requires jimfs;
-  requires static jsr305;
   requires me.xdrop.fuzzywuzzy;
   requires static transitive org.apiguardian.api;
   requires org.assertj.core;
+  requires static org.jspecify;
   requires static transitive org.junit.jupiter.params;
-  requires static transitive org.opentest4j;
   requires org.slf4j;
+
+  //////////////////
+  /// PUBLIC API ///
+  //////////////////
 
   exports io.github.ascopes.jct.assertions;
   exports io.github.ascopes.jct.containers;
@@ -103,21 +114,31 @@ module io.github.ascopes.jct {
   exports io.github.ascopes.jct.diagnostics;
   exports io.github.ascopes.jct.ex;
   exports io.github.ascopes.jct.filemanagers;
+  exports io.github.ascopes.jct.filemanagers.config;
   exports io.github.ascopes.jct.junit;
   exports io.github.ascopes.jct.repr;
   exports io.github.ascopes.jct.workspaces;
 
-  opens io.github.ascopes.jct.junit;
+  ///////////////////////////////////
+  /// SERVICE PROVIDER INTERFACES ///
+  ///////////////////////////////////
+
+  uses RamFileSystemProvider;
 
   //////////////////////////////////////////////////////
   /// EXPOSURE OF INTERNALS TO THE TESTING NAMESPACE ///
   //////////////////////////////////////////////////////
+
   exports io.github.ascopes.jct.compilers.impl to io.github.ascopes.jct.testing;
   exports io.github.ascopes.jct.compilers.javac to io.github.ascopes.jct.testing;
   exports io.github.ascopes.jct.containers.impl to io.github.ascopes.jct.testing;
   exports io.github.ascopes.jct.filemanagers.impl to io.github.ascopes.jct.testing;
   exports io.github.ascopes.jct.utils to io.github.ascopes.jct.testing;
   exports io.github.ascopes.jct.workspaces.impl to io.github.ascopes.jct.testing;
+
+  //////////////////////////////////////////////////////////////////////////
+  /// EXPOSURE OF ALL COMPONENTS TO THE TESTING NAMESPACE FOR REFLECTION ///
+  //////////////////////////////////////////////////////////////////////////
 
   opens io.github.ascopes.jct.assertions to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.compilers to io.github.ascopes.jct.testing;
@@ -128,7 +149,9 @@ module io.github.ascopes.jct {
   opens io.github.ascopes.jct.diagnostics to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.ex to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.filemanagers to io.github.ascopes.jct.testing;
+  opens io.github.ascopes.jct.filemanagers.config to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.filemanagers.impl to io.github.ascopes.jct.testing;
+  opens io.github.ascopes.jct.junit to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.repr to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.utils to io.github.ascopes.jct.testing;
   opens io.github.ascopes.jct.workspaces to io.github.ascopes.jct.testing;

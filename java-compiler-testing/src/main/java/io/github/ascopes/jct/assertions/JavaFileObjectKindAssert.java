@@ -17,11 +17,11 @@ package io.github.ascopes.jct.assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.annotation.Nullable;
 import javax.tools.JavaFileObject.Kind;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractStringAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for an individual {@link Kind Java file object kind}.

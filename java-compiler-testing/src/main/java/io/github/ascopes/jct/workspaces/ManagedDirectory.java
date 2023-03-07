@@ -17,7 +17,6 @@ package io.github.ascopes.jct.workspaces;
 
 import java.io.Closeable;
 import java.io.IOException;
-import javax.annotation.CheckReturnValue;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 
@@ -34,11 +33,19 @@ public interface ManagedDirectory extends DirectoryBuilder, PathRoot {
   /**
    * Method that returns the object it is called upon to enable creating fluent-language builders.
    *
+   * <p>For example:
+   *
+   * <pre><code>
+   *   thisDirectory
+   *       .createFile("foo", "bar", "baz.txt").withContents(...)
+   *       .and().also()
+   *       .createFile("foo", "bar", "bork.txt").withContents(...);
+   * </code></pre>
+   *
    * @return this object.
    * @see #and
    * @see #then
    */
-  @CheckReturnValue
   default ManagedDirectory also() {
     return this;
   }
@@ -46,11 +53,19 @@ public interface ManagedDirectory extends DirectoryBuilder, PathRoot {
   /**
    * Method that returns the object it is called upon to enable creating fluent-language builders.
    *
+   * <p>For example:
+   *
+   * <pre><code>
+   *   thisDirectory
+   *       .createFile("foo", "bar", "baz.txt").withContents(...)
+   *       .and()
+   *       .createFile("foo", "bar", "bork.txt").withContents(...);
+   * </code></pre>
+   *
    * @return this object.
    * @see #also
    * @see #then
    */
-  @CheckReturnValue
   default ManagedDirectory and() {
     return this;
   }
@@ -71,39 +86,62 @@ public interface ManagedDirectory extends DirectoryBuilder, PathRoot {
   /**
    * Create a directory builder for the given path in this RAM file system.
    *
-   * @param first the first path fragment.
-   * @param rest  any additional path fragments.
+   * <p>Examples:
+   *
+   * <pre><code>
+   *   // Using platform-specific separators.
+   *   dir.createDirectory("foo/bar/baz")...;
+   *
+   *   // Letting JCT infer the correct path separators to use (recommended).
+   *   dir.createDirectory("foo", "bar", "baz")...;
+   * </code></pre>
+   *
+   * @param first the first part of the path.
+   * @param rest  any additional parts of the path.
    * @return the directory builder.
    */
-  @CheckReturnValue
   DirectoryBuilder createDirectory(String first, String... rest);
 
   /**
    * Create a file builder for the given path in this RAM file system.
    *
-   * @param first the first path fragment.
-   * @param rest  any additional path fragments.
+   * <pre><code>
+   *   // Using platform-specific separators.
+   *   dir.createFile("foo/bar/baz.txt")...;
+   *
+   *   // Letting JCT infer the correct path separators to use (recommended).
+   *   dir.createFile("foo", "bar", "baz.txt")...;
+   * </code></pre>
+   *
+   * @param fragment  the first part of the path.
+   * @param fragments any additional parts of the path.
    * @return the file builder.
    */
-  @CheckReturnValue
-  FileBuilder createFile(String first, String... rest);
+  FileBuilder createFile(String fragment, String... fragments);
 
   /**
    * Get the identifying name of the temporary file system.
    *
    * @return the identifier string.
    */
-  @CheckReturnValue
   String getName();
 
   /**
    * Method that returns the object it is called upon to enable creating fluent-language builders.
    *
+   * <p>For example:
+   *
+   * <pre><code>
+   *   thisDirectory
+   *       .createFile("foo", "bar", "baz.txt").withContents(...)
+   *       .and().then()
+   *       .createFile("foo", "bar", "bork.txt").withContents(...);
+   * </code></pre>
+   *
    * @return this object.
    * @see #and
    * @see #also
    */
-  @CheckReturnValue
   default ManagedDirectory then() {
     return this;
   }

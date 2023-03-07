@@ -17,7 +17,6 @@ package io.github.ascopes.jct.utils;
 
 import java.util.Objects;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 
@@ -38,13 +37,10 @@ import org.apiguardian.api.API.Status;
  * @since 0.0.1
  */
 @API(since = "0.0.1", status = Status.INTERNAL)
-@SuppressWarnings("ConstantConditions")
 public class Lazy<T> {
 
   private final Supplier<T> initializer;
   private final Object lock;
-
-  @Nullable
   private volatile T data;
 
   /**

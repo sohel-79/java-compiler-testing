@@ -22,10 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.ascopes.jct.utils.IterableUtils;
 import java.util.List;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Abstract base class for an assertion on an {@link Enum}.

@@ -24,10 +24,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import io.github.ascopes.jct.compilers.JctCompilerConfigurer.JctSimpleCompilerConfigurer;
+import io.github.ascopes.jct.compilers.JctCompilerConfigurer;
 import io.github.ascopes.jct.compilers.javac.JavacJctCompilerImpl;
 import io.github.ascopes.jct.junit.JavacCompilerTest;
 import io.github.ascopes.jct.junit.JavacCompilersProvider;
+import io.github.ascopes.jct.junit.VersionStrategy;
 import java.lang.reflect.AnnotatedElement;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
@@ -38,7 +39,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * {@link JavacCompilersProvider} tests.
  */
-@SuppressWarnings("unchecked")
 @DisplayName("JavacCompilersProvider tests")
 class JavacCompilersProviderTest {
 
@@ -70,7 +70,7 @@ class JavacCompilersProviderTest {
           var compiler = compilers.get(i);
           softly.assertThat(compiler.getName())
               .as("compilers[%d].getName()", i)
-              .isEqualTo("javac release %d", 10 + i);
+              .isEqualTo("JDK Compiler (release = Java %d)", 10 + i);
           softly.assertThat(compiler.getRelease())
               .as("compilers[%d].getRelease()", i)
               .isEqualTo("%d", 10 + i);
@@ -107,7 +107,7 @@ class JavacCompilersProviderTest {
           var compiler = compilers.get(i);
           softly.assertThat(compiler.getName())
               .as("compilers[%d].getName()", i)
-              .isEqualTo("javac release %d", 8 + i);
+              .isEqualTo("JDK Compiler (release = Java %d)", 8 + i);
           softly.assertThat(compiler.getRelease())
               .as("compilers[%d].getRelease()", i)
               .isEqualTo("%d", 8 + i);
@@ -144,7 +144,7 @@ class JavacCompilersProviderTest {
           var compiler = compilers.get(i);
           softly.assertThat(compiler.getName())
               .as("compilers[%d].getName()", i)
-              .isEqualTo("javac release %d", 10 + i);
+              .isEqualTo("JDK Compiler (release = Java %d)", 10 + i);
           softly.assertThat(compiler.getRelease())
               .as("compilers[%d].getRelease()", i)
               .isEqualTo("%d", 10 + i);
@@ -153,17 +153,20 @@ class JavacCompilersProviderTest {
     }
   }
 
-  JavacCompilerTest someAnnotation(
+  @SafeVarargs
+  @SuppressWarnings("removal")
+  final JavacCompilerTest someAnnotation(
       int min,
       int max,
       boolean modules,
-      Class<? extends JctSimpleCompilerConfigurer>... configurers
+      Class<? extends JctCompilerConfigurer<?>>... configurers
   ) {
     var annotation = mock(JavacCompilerTest.class);
     when(annotation.minVersion()).thenReturn(min);
     when(annotation.maxVersion()).thenReturn(max);
     when(annotation.modules()).thenReturn(modules);
     when(annotation.configurers()).thenReturn(configurers);
+    when(annotation.versionStrategy()).thenReturn(VersionStrategy.RELEASE);
     when(annotation.annotationType()).thenAnswer(ctx -> JavacCompilerTest.class);
     return annotation;
   }

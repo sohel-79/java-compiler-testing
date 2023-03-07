@@ -16,9 +16,9 @@
 package io.github.ascopes.jct.compilers;
 
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Interface for defining a common flag builder for compilers.
@@ -59,6 +59,14 @@ public interface JctFlagBuilder {
    * @return this builder.
    */
   JctFlagBuilder failOnWarnings(boolean enabled);
+
+  /**
+   * Set the compilation mode to run under.
+   *
+   * @param compilationMode the compilation mode to run under.
+   * @return this builder.
+   */
+  JctFlagBuilder compilationMode(CompilationMode compilationMode);
 
   /**
    * Add deprecation warning preferences.

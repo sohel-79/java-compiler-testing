@@ -18,20 +18,23 @@ package io.github.ascopes.jct.compilers;
 import static io.github.ascopes.jct.utils.IterableUtils.requireNonNullValues;
 import static java.util.Objects.requireNonNull;
 
+import io.github.ascopes.jct.compilers.impl.JctCompilationFactoryImpl;
 import io.github.ascopes.jct.compilers.impl.JctCompilationImpl;
-import io.github.ascopes.jct.compilers.impl.JctJsr199Interop;
+import io.github.ascopes.jct.ex.JctCompilerException;
 import io.github.ascopes.jct.filemanagers.AnnotationProcessorDiscovery;
+import io.github.ascopes.jct.filemanagers.JctFileManagerFactory;
 import io.github.ascopes.jct.filemanagers.LoggingMode;
 import io.github.ascopes.jct.workspaces.Workspace;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import javax.annotation.Nullable;
 import javax.annotation.processing.Processor;
-import javax.tools.JavaCompiler;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Common functionality for a compiler that can be overridden and that produces a
@@ -53,17 +56,16 @@ import org.apiguardian.api.API.Status;
  */
 @API(since = "0.0.1", status = Status.STABLE)
 public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
-    implements JctCompiler<A, JctCompilationImpl> {
+    implements JctCompiler<A, JctCompilation> {
 
-  private final String name;
-  private final JavaCompiler jsr199Compiler;
-  private final JctFlagBuilder flagBuilder;
   private final List<Processor> annotationProcessors;
   private final List<String> annotationProcessorOptions;
   private final List<String> compilerOptions;
+  private String name;
   private boolean showWarnings;
   private boolean showDeprecationWarnings;
   private boolean failOnWarnings;
+  private CompilationMode compilationMode;
   private Locale locale;
   private Charset logCharset;
   private boolean verbose;
@@ -83,25 +85,17 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
   /**
    * Initialize this compiler.
    *
-   * @param name           the friendly name of the compiler.
-   * @param jsr199Compiler the JSR-199 compiler implementation to use.
-   * @param flagBuilder    the flag builder to use.
+   * @param defaultName the printable default name to use for the compiler.
    */
-  protected AbstractJctCompiler(
-      String name,
-      JavaCompiler jsr199Compiler,
-      JctFlagBuilder flagBuilder
-  ) {
-    this.name = requireNonNull(name, "name");
-    this.jsr199Compiler = requireNonNull(jsr199Compiler, "jsr199Compiler");
-    this.flagBuilder = requireNonNull(flagBuilder, "flagBuilder");
-
+  protected AbstractJctCompiler(String defaultName) {
+    name = requireNonNull(defaultName, "name");
     annotationProcessors = new ArrayList<>();
     annotationProcessorOptions = new ArrayList<>();
     compilerOptions = new ArrayList<>();
     showWarnings = JctCompiler.DEFAULT_SHOW_WARNINGS;
     showDeprecationWarnings = JctCompiler.DEFAULT_SHOW_DEPRECATION_WARNINGS;
     failOnWarnings = JctCompiler.DEFAULT_FAIL_ON_WARNINGS;
+    compilationMode = JctCompiler.DEFAULT_COMPILATION_MODE;
     locale = JctCompiler.DEFAULT_LOCALE;
     logCharset = JctCompiler.DEFAULT_LOG_CHARSET;
     previewFeatures = JctCompiler.DEFAULT_PREVIEW_FEATURES;
@@ -120,8 +114,13 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
   }
 
   @Override
-  public JctCompilationImpl compile(Workspace workspace) {
-    return JctJsr199Interop.compile(workspace, myself(), jsr199Compiler, flagBuilder);
+  public JctCompilation compile(Workspace workspace) {
+    return compileInternal(workspace, null);
+  }
+
+  @Override
+  public JctCompilation compile(Workspace workspace, Collection<String> classNames) {
+    return compileInternal(workspace, classNames);
   }
 
   @Override
@@ -131,31 +130,15 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     return myself();
   }
 
-  /**
-   * Get the flag builder to use.
-   *
-   * @return the flag builder.
-   */
-  public JctFlagBuilder getFlagBuilder() {
-    return flagBuilder;
-  }
-
-  /**
-   * Get the JSR-199 compiler to use.
-   *
-   * @return the JSR-199 compiler.
-   */
-  public JavaCompiler getJsr199Compiler() {
-    return jsr199Compiler;
-  }
-
-  /**
-   * Get the friendly name of the compiler implementation.
-   *
-   * @return the friendly name.
-   */
+  @Override
   public String getName() {
     return name;
+  }
+
+  @Override
+  public A name(String name) {
+    this.name = requireNonNull(name, "name");
+    return myself();
   }
 
   @Override
@@ -214,6 +197,17 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
   }
 
   @Override
+  public CompilationMode getCompilationMode() {
+    return compilationMode;
+  }
+
+  @Override
+  public A compilationMode(CompilationMode compilationMode) {
+    this.compilationMode = compilationMode;
+    return myself();
+  }
+
+  @Override
   public List<String> getAnnotationProcessorOptions() {
     return List.copyOf(annotationProcessorOptions);
   }
@@ -250,7 +244,19 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     return myself();
   }
 
-  @Nullable
+  @Override
+  public String getEffectiveRelease() {
+    if (release != null) {
+      return release;
+    }
+
+    if (target != null) {
+      return target;
+    }
+
+    return getDefaultRelease();
+  }
+
   @Override
   public String getRelease() {
     return release;
@@ -268,7 +274,6 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     return myself();
   }
 
-  @Nullable
   @Override
   public String getSource() {
     return source;
@@ -283,7 +288,6 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     return myself();
   }
 
-  @Nullable
   @Override
   public String getTarget() {
     return target;
@@ -414,10 +418,64 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     return myself();
   }
 
+  /**
+   * Get the compiler name.
+   *
+   * @return the compiler name.
+   * @see #getName()
+   * @see #name(String)
+   * @deprecated Use {@link #getName()} instead.
+   */
+  @Deprecated
   @Override
   public final String toString() {
     return name;
   }
+
+  /**
+   * Get the flag builder factory to use for building flags.
+   *
+   * @return the factory.
+   */
+  public abstract JctFlagBuilderFactory getFlagBuilderFactory();
+
+  /**
+   * Get the JSR-199 compiler factory to use for initialising an internal compiler.
+   *
+   * @return the factory.
+   */
+  public abstract Jsr199CompilerFactory getCompilerFactory();
+
+  /**
+   * Get the file manager factory to use for building a file manager during compilation.
+   *
+   * @return the factory.
+   */
+  public abstract JctFileManagerFactory getFileManagerFactory();
+
+  /**
+   * Get the compilation factory to use for building a compilation.
+   *
+   * <p>By default, this uses a common internal implementation that is designed to work with
+   * compilers that have interfaces the same as, and behave the same as Javac.
+   *
+   * <p>Some obscure compiler implementations with potentially satanic rituals for initialising
+   * and configuring components correctly may need to provide a custom implementation here instead.
+   * In this case, this method should be overridden.
+   *
+   * @return the compilation factory.
+   */
+  public JctCompilationFactory getCompilationFactory() {
+    return new JctCompilationFactoryImpl(this);
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * @return the default release version to use when no version is specified by the user.
+   */
+  @Override
+  public abstract String getDefaultRelease();
 
   /**
    * Get this implementation of {@link AbstractJctCompiler}, cast to the type parameter {@link A}.
@@ -429,5 +487,59 @@ public abstract class AbstractJctCompiler<A extends AbstractJctCompiler<A>>
     var me = (A) this;
 
     return me;
+  }
+
+  /**
+   * Build the list of flags from this compiler object using the flag builder.
+   *
+   * <p>Implementations should not need to override this unless there is a special edge case
+   * that needs configuring differently. This is exposed to assist in these kinds of cases.
+   *
+   * @param flagBuilder the flag builder to apply the flag configuration to.
+   * @return the string flags to use.
+   */
+  protected List<String> buildFlags(JctFlagBuilder flagBuilder) {
+    return flagBuilder
+        .annotationProcessorOptions(annotationProcessorOptions)
+        .showDeprecationWarnings(showDeprecationWarnings)
+        .failOnWarnings(failOnWarnings)
+        .compilerOptions(compilerOptions)
+        .previewFeatures(previewFeatures)
+        .release(release)
+        .source(source)
+        .target(target)
+        .verbose(verbose)
+        .showWarnings(showWarnings)
+        .build();
+  }
+
+  @SuppressWarnings("ThrowFromFinallyBlock")
+  private JctCompilation compileInternal(Workspace workspace, Collection<String> classNames) {
+    var fileManagerFactory = getFileManagerFactory();
+    var flagBuilderFactory = getFlagBuilderFactory();
+    var compilerFactory = getCompilerFactory();
+    var compilationFactory = getCompilationFactory();
+    var flags = buildFlags(flagBuilderFactory.createFlagBuilder());
+    var compiler = compilerFactory.createCompiler();
+    var fileManager = fileManagerFactory.createFileManager(workspace);
+
+    // Any internal exceptions should be rethrown as a JctCompilerException by the
+    // compilation factory, so there is nothing else to worry about here.
+    // Likewise, do not catch IOException on the compilation process, as it may hide
+    // bugs. Hence, we have to use a try-finally-try-catch-rethrow manually rather than a nice
+    // try-with-resources. This is kinda crap code, but it prevents reporting errors incorrectly.
+
+    try {
+      return compilationFactory.createCompilation(flags, fileManager, compiler, classNames);
+    } finally {
+      try {
+        fileManager.close();
+      } catch (IOException ex) {
+        throw new JctCompilerException(
+            "Failed to close file manager. This is probably a bug, so please report it.",
+            ex
+        );
+      }
+    }
   }
 }

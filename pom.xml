@@ -21,7 +21,7 @@
 
   <groupId>io.github.ascopes.jct</groupId>
   <artifactId>java-compiler-testing-parent</artifactId>
-  <version>0.0.1-M5-SNAPSHOT</version>
+  <version>0.3.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Java Compiler Testing parent project</name>
@@ -95,40 +95,38 @@
   <properties>
     <!-- Dependencies -->
     <apiguardian.version>1.1.2</apiguardian.version>
-    <assertj.version>3.24.1</assertj.version>
+    <assertj.version>3.24.2</assertj.version>
     <awaitility.version>4.2.0</awaitility.version>
     <fuzzywuzzy.version>1.4.0</fuzzywuzzy.version>
-    <groovy.version>4.0.7</groovy.version>
+    <groovy.version>4.0.9</groovy.version>
     <jimfs.version>1.2</jimfs.version>
-    <jsr305.version>3.0.2</jsr305.version>
+    <jspecify.version>0.3.0</jspecify.version>
     <junit.version>5.9.2</junit.version>
-    <mockito.version>4.11.0</mockito.version>
+    <mockito.version>5.1.1</mockito.version>
     <slf4j.version>2.0.6</slf4j.version>
 
     <!-- Plugins -->
-    <dependency-check.version>7.4.4</dependency-check.version>
     <gmaven-plugin.version>2.1.0</gmaven-plugin.version>
     <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
     <license-maven-plugin.version>4.1</license-maven-plugin.version>
-    <maven-checkstyle-plugin.version>3.2.0</maven-checkstyle-plugin.version>
-    <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
-    <maven-deploy-plugin.version>3.0.0</maven-deploy-plugin.version>
-    <maven-failsafe-plugin.version>3.0.0-M7</maven-failsafe-plugin.version>
+    <maven-checkstyle-plugin.version>3.2.1</maven-checkstyle-plugin.version>
+    <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+    <maven-deploy-plugin.version>3.1.0</maven-deploy-plugin.version>
+    <maven-enforcer-plugin.version>3.2.1</maven-enforcer-plugin.version>
+    <maven-failsafe-plugin.version>3.0.0-M9</maven-failsafe-plugin.version>
     <maven-install-plugin.version>3.1.0</maven-install-plugin.version>
     <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
-    <maven-javadoc-plugin.version>3.4.1</maven-javadoc-plugin.version>
+    <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
     <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
     <maven-release-plugin.version>3.0.0-M7</maven-release-plugin.version>
     <maven-resources-plugin.version>3.3.0</maven-resources-plugin.version>
     <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-    <maven-surefire-plugin.version>3.0.0-M7</maven-surefire-plugin.version>
+    <maven-surefire-plugin.version>3.0.0-M9</maven-surefire-plugin.version>
     <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
-    <pitest-maven.version>1.10.4</pitest-maven.version>
 
     <!-- Plugin dependencies -->
-    <checkstyle.version>10.6.0</checkstyle.version>
+    <checkstyle.version>10.8.0</checkstyle.version>
     <maven-surefire-junit5-tree-reporter.version>1.1.0</maven-surefire-junit5-tree-reporter.version>
-    <pitest-junit5-plugin.version>1.1.1</pitest-junit5-plugin.version>
 
     <!-- Log verbosity -->
     <hide-test-logs-in-console>true</hide-test-logs-in-console>
@@ -140,11 +138,16 @@
 
       We also disable code sharing to prevent some other warnings during test runs, and
       force the SLF4J simple logger defaults to use in tests here.
+
+      Tired compilation is modified to reduce the amount of time the JVM wastes JITing
+      code during tests.
     -->
     <argLine>
       -Dorg.slf4j.simpleLogger.log=INFO
-      -Dorg.slf4j.simpleLogger.log.io.github.ascopes.jct=DEBUG
+      -Dorg.slf4j.simpleLogger.log.io.github.ascopes.jct=TRACE
       -Xshare:off
+      -XX:+TieredCompilation
+      -XX:TieredStopAtLevel=1
     </argLine>
 
     <!-- Scanning -->
@@ -156,6 +159,9 @@
 
     <!-- JavaDocs -->
     <current-year>2023</current-year>
+    <newest-java-version>19</newest-java-version>
+    <github-fork-ribbon.version>0.2.3</github-fork-ribbon.version>
+    <highlight-js.version>11.7.0</highlight-js.version>
 
     <!-- Other configuration -->
     <project-slug>ascopes/java-compiler-testing</project-slug>
@@ -163,12 +169,6 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>com.google.code.findbugs</groupId>
-        <artifactId>jsr305</artifactId>
-        <version>${jsr305.version}</version>
-      </dependency>
-
       <dependency>
         <!-- In-memory file system -->
         <groupId>com.google.jimfs</groupId>
@@ -209,6 +209,12 @@
         <groupId>org.apache.groovy</groupId>
         <artifactId>groovy</artifactId>
         <version>${groovy.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.jspecify</groupId>
+        <artifactId>jspecify</artifactId>
+        <version>${jspecify.version}</version>
       </dependency>
 
       <dependency>
@@ -255,12 +261,11 @@
           <version>${maven-compiler-plugin.version}</version>
 
           <configuration>
-            <compilerArgs>
-              <compilerArg>--module-version=${project.version}</compilerArg>
-            </compilerArgs>
             <failOnWarning>true</failOnWarning>
-            <showDeprecation>true</showDeprecation>
+            <parameters>true</parameters>
             <release>${java-release}</release>
+            <showDeprecation>true</showDeprecation>
+            <showWarnings>true</showWarnings>
           </configuration>
         </plugin>
 
@@ -373,6 +378,7 @@
 
           <configuration>
             <additionalOptions>
+              <option>--allow-script-in-comments</option>
               <option>--override-methods=detail</option>
               <option>--show-packages=exported</option>
             </additionalOptions>
@@ -381,12 +387,38 @@
             </bottom>
             <defaultSince>0.0.1</defaultSince>
             <detectLinks>false</detectLinks>
+            <header>
+              <![CDATA[
+
+              <!-- GitHub Ribbon -->
+              <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/${github-fork-ribbon.version}/gh-fork-ribbon.min.css" />
+              <a class="github-fork-ribbon right-bottom fixed" href="${project.url}" data-ribbon="Fork me on GitHub" title="Fork me on GitHub">Fork me on GitHub</a>
+
+              <!-- Highlight.js -->
+              <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/${highlight-js.version}/styles/stackoverflow-light.min.css">
+              <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/${highlight-js.version}/highlight.min.js"></script>
+              <script>
+                "use strict";
+
+                function initSyntaxHighlighting() {
+                  hljs.configure({languages: ["java"]});
+                  hljs.highlightAll();
+                }
+
+                if (document.readyState === "complete" || document.readyState === "interactive") {
+                  setTimeout(initSyntaxHighlighting, 1);
+                } else {
+                  document.addEventListener("DOMContentLoaded", initSyntaxHighlighting);
+                }
+              </script>
+              ]]>
+            </header>
             <keywords>true</keywords>
             <linksource>true</linksource>
             <links>
-              <link>https://docs.oracle.com/en/java/javase/17/docs/api</link>
-              <link>https://javadoc.io/doc/com.google.code.findbugs/jsr305/${jsr305.version}</link>
+              <link>https://docs.oracle.com/en/java/javase/${newest-java-version}/docs/api</link>
               <link>https://javadoc.io/doc/org.assertj/assertj-core/${assertj.version}</link>
+              <link>https://javadoc.io/doc/org.jspecify/jspecify/${jspecify.version}</link>
               <link>https://www.slf4j.org/apidocs</link>
               <link>https://junit.org/junit5/docs/${junit.version}/api</link>
             </links>
@@ -538,78 +570,27 @@
             </execution>
           </executions>
         </plugin>
-
-        <plugin>
-          <groupId>org.owasp</groupId>
-          <artifactId>dependency-check-maven</artifactId>
-          <version>${dependency-check.version}</version>
-
-          <configuration>
-            <failBuildOnAnyVulnerability>true</failBuildOnAnyVulnerability>
-            <formats>
-              <format>html</format>
-              <format>junit</format>
-            </formats>
-
-            <skip>${skip-dependency-scan}</skip>
-            <skipTestScope>true</skipTestScope>
-            <suppressionFile>${project.basedir}/security-suppressions.xml</suppressionFile>
-          </configuration>
-
-          <executions>
-            <execution>
-              <id>dependency-check</id>
-              <phase>verify</phase>
-              <goals>
-                <goal>check</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
-
-        <!-- Pitest for mutation testing -->
-        <plugin>
-          <groupId>org.pitest</groupId>
-          <artifactId>pitest-maven</artifactId>
-          <version>${pitest-maven.version}</version>
-
-          <dependencies>
-            <dependency>
-              <groupId>org.pitest</groupId>
-              <artifactId>pitest-junit5-plugin</artifactId>
-              <version>${pitest-junit5-plugin.version}</version>
-            </dependency>
-          </dependencies>
-
-          <configuration>
-            <exportLineCoverage>true</exportLineCoverage>
-            <failWhenNoMutations>false</failWhenNoMutations>
-            <features>
-              <feature>+auto_threads</feature>
-              <feature>+export</feature>
-            </features>
-            <parseSurefireConfig>false</parseSurefireConfig>
-            <skipFailingTests>true</skipFailingTests>
-            <threads>16</threads>
-            <timestampedReports>false</timestampedReports>
-            <verbose>true</verbose>
-          </configuration>
-
-          <executions>
-            <execution>
-              <id>mutation-test</id>
-              <phase>test</phase>
-              <goals>
-                <goal>mutationCoverage</goal>
-                <goal>report</goal>
-              </goals>
-            </execution>
-          </executions>
-        </plugin>
       </plugins>
     </pluginManagement>
 
     <plugins>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <configuration>
+          <rules>
+            <requireMavenVersion>
+              <!--
+                  Expect this Maven version or crash the build. This ensures people are using
+                  ./mvnw or .\mvnw.cmd to build things.
+              -->
+              <version>3.9.0</version>
+            </requireMavenVersion>
+          </rules>
+        </configuration>
+      </plugin>
 
       <plugin>
         <!-- Enforces our license header and allows adding it automatically to code. -->
@@ -618,24 +599,27 @@
         <version>${license-maven-plugin.version}</version>
 
         <configuration>
-          <!-- Useful flags: https://mycila.carbou.me/license-maven-plugin/ -->
-          <header>.mvn/license/license-header.txt</header>
-
+          <licenseSets>
+            <licenseSet>
+              <header>.mvn/license/license-header.txt</header>
+              <!-- Useful flags: https://mycila.carbou.me/license-maven-plugin/ -->
+              <includes>
+                <include>**.toml</include>
+                <include>**.yml</include>
+                <include>**.yaml</include>
+                <include>pom.xml</include>
+                <include>security-suppressions.xml</include>
+                <include>src/**/*.groovy</include>
+                <include>src/**/*.java</include>
+                <include>scripts/**/*.sh</include>
+              </includes>
+            </licenseSet>
+          </licenseSets>
           <mapping>
             <groovy>SLASHSTAR_STYLE</groovy>
             <java>SLASHSTAR_STYLE</java>
             <toml>SCRIPT_STYLE</toml>
           </mapping>
-          <includes>
-            <include>**.toml</include>
-            <include>**.yml</include>
-            <include>**.yaml</include>
-            <include>pom.xml</include>
-            <include>security-suppressions.xml</include>
-            <include>src/**/*.groovy</include>
-            <include>src/**/*.java</include>
-            <include>scripts/**/*.sh</include>
-          </includes>
           <properties>
             <currentYear>${current-year}</currentYear>
             <inceptionYear>${project.inceptionYear}</inceptionYear>
@@ -693,18 +677,6 @@
   </build>
 
   <profiles>
-    <profile>
-      <id>dependency-check</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.owasp</groupId>
-            <artifactId>dependency-check-maven</artifactId>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-
     <profile>
       <id>releases</id>
 

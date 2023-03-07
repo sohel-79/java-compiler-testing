@@ -23,13 +23,13 @@ import io.github.ascopes.jct.utils.StringUtils;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import javax.annotation.Nullable;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.presentation.Representation;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * @author Ashley Scopes
  * @since 0.0.1
  */
-@API(since = "0.0.1", status = Status.INTERNAL)
+@API(since = "0.0.1", status = Status.STABLE)
 public final class TraceDiagnosticRepresentation implements Representation {
 
   private static final TraceDiagnosticRepresentation INSTANCE
@@ -108,8 +108,6 @@ public final class TraceDiagnosticRepresentation implements Representation {
     return builder.toString();
   }
 
-  @Nullable
-  @SuppressWarnings("ConstantConditions")
   private Snippet extractSnippet(Diagnostic<? extends JavaFileObject> diagnostic) {
     var source = diagnostic.getSource();
 
@@ -152,7 +150,6 @@ public final class TraceDiagnosticRepresentation implements Representation {
     );
   }
 
-  @Nullable
   private static String tryGetContents(FileObject fileObject) {
     // We may not always be able to read the contents of a file object correctly. This may be down
     // to IO exceptions occurring on the disk, or it may be due to the components under-test
@@ -260,8 +257,15 @@ public final class TraceDiagnosticRepresentation implements Representation {
           .append(" ".repeat(lineNumberWidth))
           .append(" + ");
 
-      for (int i = startOfLine; i < Math.min(endOfLine, endOffset); ++i) {
-        builder.append(startOffset <= i ? '^' : ' ');
+      var endIndex = Math.min(endOfLine, endOffset);
+      for (int i = startOfLine; i < endIndex; ++i) {
+        if (i < startOffset) {
+          builder.append(' ');
+        } else if (i == startOffset || i == endOffset - 1) {
+          builder.append('^');
+        } else {
+          builder.append('~');
+        }
       }
 
       builder.append('\n');

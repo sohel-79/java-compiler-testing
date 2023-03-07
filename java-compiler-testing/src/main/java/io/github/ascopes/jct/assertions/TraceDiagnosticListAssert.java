@@ -21,7 +21,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.function.Predicate.not;
 
 import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
-import io.github.ascopes.jct.repr.DiagnosticListRepresentation;
+import io.github.ascopes.jct.repr.TraceDiagnosticListRepresentation;
 import io.github.ascopes.jct.utils.StringUtils;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -30,7 +30,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import javax.annotation.Nullable;
 import javax.tools.Diagnostic.Kind;
 import javax.tools.JavaFileObject;
 import org.apiguardian.api.API;
@@ -54,10 +53,10 @@ public final class TraceDiagnosticListAssert
    * @param traceDiagnostics the diagnostics to perform assertions on.
    */
   public TraceDiagnosticListAssert(
-      @Nullable List<? extends TraceDiagnostic<? extends JavaFileObject>> traceDiagnostics
+      List<? extends TraceDiagnostic<? extends JavaFileObject>> traceDiagnostics
   ) {
     super(traceDiagnostics, TraceDiagnosticListAssert.class);
-    info.useRepresentation(DiagnosticListRepresentation.getInstance());
+    info.useRepresentation(TraceDiagnosticListRepresentation.getInstance());
   }
 
   /**
@@ -68,7 +67,7 @@ public final class TraceDiagnosticListAssert
    * @throws AssertionError if the list is null.
    */
   public TraceDiagnosticListAssert errors() {
-    return filteringByKinds(Kind.ERROR);
+    return filteringByKinds(DiagnosticKindAssert.ERROR_DIAGNOSTIC_KINDS);
   }
 
   /**
@@ -80,7 +79,7 @@ public final class TraceDiagnosticListAssert
    * @throws AssertionError if the list is null.
    */
   public TraceDiagnosticListAssert warnings() {
-    return filteringByKinds(Kind.WARNING, Kind.MANDATORY_WARNING);
+    return filteringByKinds(DiagnosticKindAssert.WARNING_DIAGNOSTIC_KINDS);
   }
 
   /**
@@ -195,7 +194,7 @@ public final class TraceDiagnosticListAssert
    * @throws AssertionError if this list is null.
    */
   public TraceDiagnosticListAssert hasNoErrors() {
-    return hasNoDiagnosticsOfKinds(Kind.ERROR);
+    return hasNoDiagnosticsOfKinds(DiagnosticKindAssert.ERROR_DIAGNOSTIC_KINDS);
   }
 
   /**
@@ -206,7 +205,7 @@ public final class TraceDiagnosticListAssert
    * @throws AssertionError if this list is null.
    */
   public TraceDiagnosticListAssert hasNoErrorsOrWarnings() {
-    return hasNoDiagnosticsOfKinds(Kind.ERROR, Kind.WARNING, Kind.MANDATORY_WARNING);
+    return hasNoDiagnosticsOfKinds(DiagnosticKindAssert.WARNING_AND_ERROR_DIAGNOSTIC_KINDS);
   }
 
   /**
@@ -217,7 +216,7 @@ public final class TraceDiagnosticListAssert
    * @throws AssertionError if this list is null.
    */
   public TraceDiagnosticListAssert hasNoWarnings() {
-    return hasNoDiagnosticsOfKinds(Kind.WARNING, Kind.MANDATORY_WARNING);
+    return hasNoDiagnosticsOfKinds(DiagnosticKindAssert.WARNING_DIAGNOSTIC_KINDS);
   }
 
   /**
@@ -286,17 +285,30 @@ public final class TraceDiagnosticListAssert
   public TraceDiagnosticListAssert hasNoDiagnosticsOfKinds(Iterable<Kind> kinds) {
     requireNonNullValues(kinds, "kinds");
 
-    return filteringBy(kind(kinds))
-        .withFailMessage(() -> {
-          var allKindsString = StreamSupport.stream(kinds.spliterator(), false)
-              .map(next -> next.name().toLowerCase(Locale.ROOT).replace('_', ' '))
-              .collect(Collectors.collectingAndThen(
-                  Collectors.toUnmodifiableList(),
-                  names -> StringUtils.toWordedList(names, ", ", ", or ")
-              ));
+    var actualDiagnostics = actual
+        .stream()
+        .filter(kind(kinds))
+        .collect(Collectors.toList());
 
-          return String.format("Expected no %s diagnostics", allKindsString);
-        });
+    if (!actualDiagnostics.isEmpty()) {
+      var allKindsString = StreamSupport.stream(kinds.spliterator(), false)
+          .map(next -> next.name().toLowerCase(Locale.ROOT).replace('_', ' '))
+          .sorted()
+          .collect(Collectors.collectingAndThen(
+              Collectors.toUnmodifiableList(),
+              names -> StringUtils.toWordedList(names, ", ", ", or ")
+          ));
+
+      failWithActualExpectedAndMessage(
+          actualDiagnostics.size(),
+          0,
+          "Expected no %s diagnostics.\n\nDiagnostics:\n%s",
+          allKindsString,
+          TraceDiagnosticListRepresentation.getInstance().toStringOf(actualDiagnostics)
+      );
+    }
+
+    return myself;
   }
 
   /**

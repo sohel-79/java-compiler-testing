@@ -28,9 +28,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Builder of {@link Object#toString()} representations for POJO objects.
@@ -41,7 +41,6 @@ import org.apiguardian.api.API.Status;
 @API(status = Status.INTERNAL, since = "0.0.1")
 public final class ToStringBuilder {
 
-  private static final Object NULL_SENTINEL = new Object();
   private static final String LSQUARE = "[";
   private static final String RSQUARE = "]";
   private static final String COMMA = ", ";
@@ -83,7 +82,7 @@ public final class ToStringBuilder {
    * @return this builder for further calls.
    */
   public ToStringBuilder attribute(String name, @Nullable Object value) {
-    attributes.put(name, value == null ? NULL_SENTINEL : value);
+    attributes.put(name, value);
     return this;
   }
 
@@ -116,7 +115,7 @@ public final class ToStringBuilder {
   }
 
   private static void appendToString(StringBuilder builder, Object object) {
-    if (object == NULL_SENTINEL) {
+    if (object == null) {
       builder.append(NULL);
     } else if (TYPES_TO_TREAT_AS_STRINGS.stream().anyMatch(cls -> cls.isInstance(object))) {
       appendToStringCharSequence(builder, object.toString());

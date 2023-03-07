@@ -27,7 +27,7 @@ unset undefined &> /dev/null || true
 # Arg 2 = log level name (e.g. WARNING)
 # Arg 3 = Message to display (e.g. "Something ain't right here")
 function __log() {
-  printf "\033[3;37m$(date "+%H:%M:%S.%3N") \033[0;37m| \033[0;1;${1}m%s:\033[0m %s\033[0m\n" \
+  printf "\033[3;37m$(date "+%H:%M:%S.%3N") \033[0;37m| \033[0;1;${1}m%7s:\033[0m %s\033[0m\n" \
       "${2}" "${3}" >&2
 }
 
@@ -55,7 +55,8 @@ function info() {
 # and fail at the end.
 # Used by the deployment pipeline.
 function ensure-set() {
-  local return_code=0
+  local return_code
+  return_code=0
 
   for variable_name; do
     if [ "${!variable_name}" = "" ]; then
@@ -67,24 +68,29 @@ function ensure-set() {
   return "${return_code}"
 }
 
-# Ensure that each provided argument is in the path, or fail.
-function in-path() {
-  for expected; do
-    command -v "${expected}" &> /dev/null || return 1
-  done
-
-  return 0
+# Dump the contents of a file.
+function dump() {
+  local name
+  name="$(basename "${1?Provide a file to dump as the first argument}}")"
+  while IFS=$'\r\n' read -r line; do __log 37 "${name}" "${line}"; done < "${1}"
 }
 
 # Visually run the command, showing the command being run, stdout, and stderr to the user.
 # Pass the commands to run in via a heredoc as stdin. Incorrect usage will dump an error and
 # terminate the current shell.
 function run() {
+  local echo_groups="false"
+  if [[ "${1:-nothing}" = "--no-group" ]]; then
+    shift 1
+  elif [[ ! -z ${CI+undefined} ]]; then
+    echo_groups="true"
+  fi
+
   # Run in subshell to enable correct argument re-quoting.
   local file
   file="$(mktemp)"
 
-  if [ "$#" -gt 0 ]; then
+  if [[ "$#" -gt 0 ]]; then
     err "Function <run> called incorrectly. Pass script to run via stdin rather than as arguments."
     err "Invocation: <${*}>"
     exit 1
@@ -93,9 +99,14 @@ function run() {
   {
     echo "#!/usr/bin/env bash"
     echo "PS4=$'Running: \e[1;33m$ \e[0;3;33m'"
-    echo "set -euxo pipefail"
+    echo "set -o errexit"
+    echo "set -o nounset"
+    echo "set -o xtrace"
     cat -
   } >> "${file}"
+
+  # Use the first line of the command as the group name.
+  if [[ "${echo_groups}" = "true" ]]; then echo "::group::$(tail -n +6 "${file}" | head -n 1)"; fi
 
   set +e
   /usr/bin/env bash \
@@ -106,7 +117,10 @@ function run() {
   rm "${file}"
   set -e
 
-  # Wait for stdout and stderr to flush for ~10ms
+  # Wait for stdout and stderr to flush for ~50ms
   sleep 0.05
+
+  if [[ "${echo_groups}" = "true" ]]; then echo "::endgroup::"; fi
+
   return "${return_code}"
 }

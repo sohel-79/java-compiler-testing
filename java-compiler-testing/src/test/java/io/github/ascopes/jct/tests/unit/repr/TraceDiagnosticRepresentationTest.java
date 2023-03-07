@@ -27,7 +27,6 @@ import static org.mockito.Mockito.withSettings;
 
 import io.github.ascopes.jct.diagnostics.TraceDiagnostic;
 import io.github.ascopes.jct.repr.TraceDiagnosticRepresentation;
-import io.github.ascopes.jct.tests.helpers.GenericMock;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -45,7 +44,6 @@ import org.mockito.quality.Strictness;
  * @author Ashley Scopes
  */
 @DisplayName("TraceDiagnosticRepresentation tests")
-@SuppressWarnings("NullableProblems")
 class TraceDiagnosticRepresentationTest {
 
   @TempDir
@@ -70,10 +68,7 @@ class TraceDiagnosticRepresentationTest {
     // Given
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getCode()).thenReturn("you.done.messed.up");
@@ -106,10 +101,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -132,7 +124,7 @@ class TraceDiagnosticRepresentationTest {
             "     4 | ",
             "     5 | public class HelloWorld {",
             "     6 |   public static int main(String[] args) throws Throwable {",
-            "       +   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       +   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^",
             "     7 |     var scanner = new Scanner(System.in);",
             "     8 |     System.out.print(\"What is your name? \");",
             "",
@@ -158,10 +150,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -184,7 +173,7 @@ class TraceDiagnosticRepresentationTest {
             "     4 | ",
             "     5 | public class HelloWorld {",
             "     6 |   public static int main(String[] args) throws Throwable {",
-            "       +   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       +   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^",
             "     7 |     var scanner = new Scanner(System.in);",
             "     8 |     System.out.print(\"What is your name? \");",
             "",
@@ -210,10 +199,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -236,7 +222,7 @@ class TraceDiagnosticRepresentationTest {
             "     4 | ",
             "     5 | public class HelloWorld {",
             "     6 |   public static int main(String[] args) throws Throwable {",
-            "       +   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       +   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^",
             "     7 |     var scanner = new Scanner(System.in);",
             "     8 |     System.out.print(\"What is your name? \");",
             "",
@@ -263,10 +249,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -301,10 +284,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -327,9 +307,9 @@ class TraceDiagnosticRepresentationTest {
             "     4 | ",
             "     5 | public class HelloWorld {",
             "     6 |   public static int main(String[] args) throws Throwable {",
-            "       +   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       +   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "     7 |     var scanner = new Scanner(System.in);",
-            "       + ^^^^^^^^^^^^^^^",
+            "       + ~~~~~~~~~~~~~~^",
             "     8 |     System.out.print(\"What is your name? \");",
             "     9 |     var name = scanner.nextLine();",
             "",
@@ -347,10 +327,7 @@ class TraceDiagnosticRepresentationTest {
 
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -373,19 +350,19 @@ class TraceDiagnosticRepresentationTest {
             "     4 | ",
             "     5 | public class HelloWorld {",
             "     6 |   public static int main(String[] args) throws Throwable {",
-            "       +   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       +   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "     7 |     var scanner = new Scanner(System.in);",
-            "       + ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "     8 |     System.out.print(\"What is your name? \");",
-            "       + ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "     9 |     var name = scanner.nextLine();",
-            "       + ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "    10 |     System.out.printf(\"Hello, %s!\", name);",
-            "       + ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+            "       + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
             "    11 |   }",
-            "       + ^^^",
+            "       + ~~~",
             "    12 | }",
-            "       + ^",
+            "       + ~",
             "",
             "    Entrypoint must be a void method."
         );
@@ -397,10 +374,7 @@ class TraceDiagnosticRepresentationTest {
     // Given
     var kind = oneOf(Kind.values());
 
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -430,10 +404,7 @@ class TraceDiagnosticRepresentationTest {
     // Given
     var kind = oneOf(Kind.values());
     var file = someFileObject();
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);
@@ -463,10 +434,7 @@ class TraceDiagnosticRepresentationTest {
     // Given
     var kind = oneOf(Kind.values());
     var file = someFileObject();
-    var diag = GenericMock
-        .mockRaw(TraceDiagnostic.class)
-        .<TraceDiagnostic<JavaFileObject>>upcastedTo()
-        .build();
+    TraceDiagnostic<JavaFileObject> diag = mock();
 
     when(diag.getKind()).thenReturn(kind);
     when(diag.getLineNumber()).thenReturn(6L);

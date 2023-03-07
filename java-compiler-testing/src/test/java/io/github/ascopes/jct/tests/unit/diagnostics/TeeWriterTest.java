@@ -16,6 +16,7 @@
 package io.github.ascopes.jct.tests.unit.diagnostics;
 
 import static io.github.ascopes.jct.tests.helpers.Fixtures.someText;
+import static java.nio.charset.Charset.defaultCharset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,7 +28,6 @@ import static org.mockito.Mockito.times;
 import io.github.ascopes.jct.diagnostics.TeeWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -43,33 +43,19 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("resource")
 class TeeWriterTest {
 
-  @DisplayName("Null charsets are disallowed")
-  @Test
-  void nullCharsetsAreDisallowed() {
-    assertThatCode(() -> TeeWriter.wrap(null, new ByteArrayOutputStream()))
-        .isInstanceOf(NullPointerException.class);
-  }
-
-  @DisplayName("Null output streams are disallowed")
-  @Test
-  void nullOutputStreamsAreDisallowed() {
-    assertThatCode(() -> TeeWriter.wrap(StandardCharsets.UTF_8, null))
-        .isInstanceOf(NullPointerException.class);
-  }
-
   @DisplayName("Null writers are disallowed")
   @Test
   void nullWritersAreDisallowed() {
-    assertThatCode(() -> TeeWriter.wrap(null))
+    assertThatCode(() -> new TeeWriter(null))
         .isInstanceOf(NullPointerException.class);
   }
 
-  @DisplayName("write() fails if the writer is closed")
+  @DisplayName(".write() fails if the writer is closed")
   @Test
   void writeFailsIfWriterIsClosed() throws IOException {
     // Given
     var writer = new StringWriter();
-    var tee = TeeWriter.wrap(writer);
+    var tee = new TeeWriter(writer);
     var text = someText();
     tee.close();
 
@@ -84,12 +70,12 @@ class TeeWriterTest {
         .isEmpty();
   }
 
-  @DisplayName("write() delegates to the writer")
+  @DisplayName(".write() delegates to the writer")
   @Test
   void writeDelegatesToTheWriter() throws IOException {
     // Given
     var writer = new StringWriter();
-    var tee = TeeWriter.wrap(writer);
+    var tee = new TeeWriter(writer);
     var text = someText();
 
     // When
@@ -99,12 +85,12 @@ class TeeWriterTest {
     assertThat(writer).hasToString(text);
   }
 
-  @DisplayName("flush() fails if the writer is closed")
+  @DisplayName(".flush() fails if the writer is closed")
   @Test
   void flushFailsIfTheWriterIsClosed() throws IOException {
     // Given
     var writer = mock(Writer.class);
-    var tee = TeeWriter.wrap(writer);
+    var tee = new TeeWriter(writer);
     tee.close();
     clearInvocations(writer);
 
@@ -116,12 +102,12 @@ class TeeWriterTest {
     then(writer).shouldHaveNoInteractions();
   }
 
-  @DisplayName("flush() delegates to the writer")
+  @DisplayName(".flush() delegates to the writer")
   @Test
   void flushDelegatesToTheWriter() throws IOException {
     // Given
-    var writer = mock(OutputStream.class);
-    var tee = TeeWriter.wrap(StandardCharsets.UTF_8, writer);
+    var writer = mock(Writer.class);
+    var tee = new TeeWriter(writer);
 
     // When
     tee.flush();
@@ -131,14 +117,14 @@ class TeeWriterTest {
     then(writer).shouldHaveNoMoreInteractions();
   }
 
-  @DisplayName("close() delegates to the writer")
+  @DisplayName(".close() delegates to the writer")
   @SuppressWarnings("EmptyTryBlock")
   @Test
   void closeDelegatesToTheWriter() throws IOException {
     // Given
     var writer = mock(Writer.class);
 
-    try (var ignoredTee = TeeWriter.wrap(writer)) {
+    try (var ignoredTee = new TeeWriter(writer)) {
       // Do nothing
     }
 
@@ -148,11 +134,11 @@ class TeeWriterTest {
     then(writer).shouldHaveNoMoreInteractions();
   }
 
-  @DisplayName("close() is idempotent")
+  @DisplayName(".close() is idempotent")
   @Test
   void closeIsIdempotent() throws IOException {
     var writer = mock(Writer.class);
-    var tee = TeeWriter.wrap(writer);
+    var tee = new TeeWriter(writer);
 
     for (var i = 0; i < 10; ++i) {
       tee.close();
@@ -162,12 +148,28 @@ class TeeWriterTest {
     then(writer).should(times(1)).close();
   }
 
-  @DisplayName("toString() should return the buffer content")
+  @DisplayName(".getContent() should return the buffer content")
+  @Test
+  void getContentShouldReturnTheBufferContent() throws IOException {
+    // Given
+    var writer = mock(Writer.class);
+    var tee = new TeeWriter(writer);
+
+    // When
+    tee.write("Hello, ");
+    tee.write("World");
+    tee.write("!");
+
+    // Then
+    assertThat(tee.getContent()).isEqualTo("Hello, World!");
+  }
+
+  @DisplayName(".toString() should return the buffer content")
   @Test
   void toStringShouldReturnTheBufferContent() throws IOException {
     // Given
-    var writer = mock(OutputStream.class);
-    var tee = TeeWriter.wrap(StandardCharsets.UTF_8, writer);
+    var writer = mock(Writer.class);
+    var tee = new TeeWriter(writer);
 
     // When
     tee.write("Hello, ");
@@ -176,5 +178,45 @@ class TeeWriterTest {
 
     // Then
     assertThat(tee).hasToString("Hello, World!");
+  }
+
+  @DisplayName(".wrapOutputStream(null, Charset) throws a NullPointerException")
+  @Test
+  void wrapOutputStreamWithNullOutputStreamThrowsNullPointerException() {
+    // Then
+    assertThatThrownBy(() -> TeeWriter.wrapOutputStream(null, defaultCharset()))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("outputStream");
+  }
+
+  @DisplayName(".wrapOutputStream(OutputStream, null) throws a NullPointerException")
+  @Test
+  void wrapOutputStreamWithNullCharsetThrowsNullPointerException() {
+    // Then
+    var os = new ByteArrayOutputStream();
+    assertThatThrownBy(() -> TeeWriter.wrapOutputStream(os, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("charset");
+  }
+
+  @DisplayName(".wrapOutputStream(OutputStream, Charset) creates a writer to the output stream")
+  @Test
+  void wrapOutputStreamWritesToTheOutputStream() throws IOException {
+    // Given
+    var outputStream = new ByteArrayOutputStream();
+    var charset = StandardCharsets.UTF_8;
+    var teeWriter = TeeWriter.wrapOutputStream(outputStream, charset);
+
+    // When
+    teeWriter.write("Hello, World!");
+    teeWriter.write("\n");
+    teeWriter.write("blah blah blah €${¾½€đ¢æßŧ");
+    teeWriter.flush();
+
+    // Then
+    assertThat(teeWriter.toString())
+        .isEqualTo("Hello, World!\nblah blah blah €${¾½€đ¢æßŧ");
+    assertThat(outputStream.toString(charset))
+        .isEqualTo("Hello, World!\nblah blah blah €${¾½€đ¢æßŧ");
   }
 }

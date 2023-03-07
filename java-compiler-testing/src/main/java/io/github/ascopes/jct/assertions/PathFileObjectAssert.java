@@ -18,10 +18,10 @@ package io.github.ascopes.jct.assertions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ascopes.jct.filemanagers.PathFileObject;
-import javax.annotation.Nullable;
 import org.apiguardian.api.API;
 import org.apiguardian.api.API.Status;
 import org.assertj.core.api.AbstractPathAssert;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Assertions for {@link PathFileObject Path file objects}.
